@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI in Ad Tech Ecosystem — IAB UK</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        @font-face { font-family: 'Modern Era'; src: local('Modern Era'), local('ModernEra-Regular'); font-weight: 400; }
+        @font-face { font-family: 'Modern Era'; src: local('Modern Era Bold'), local('ModernEra-Bold'); font-weight: 700; }
+        @font-face { font-family: 'Modern Era'; src: local('Modern Era ExtraBold'), local('ModernEra-ExtraBold'); font-weight: 800; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --deep-blue: #051461;
+            --cream: #f2f0eb;
+            --cyan: #00ffe3;
+            --bright-blue: #0078f0;
+            --magenta: #ff00ff;
+            --lavender: #9499ff;
+            --pink: #f2abff;
+            --green: #47f01a;
+            --yellow: #ffd900;
+        }
+
+        html, body { margin:0; padding:0; background:var(--deep-blue); font-family:'Modern Era',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; overflow:hidden; color:white; height:100%; }
+
+        #particle-canvas { position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:0; pointer-events:none; }
+
+        /* ===== INTRO ===== */
+        #intro-overlay {
+            position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:9999;
+            background:var(--deep-blue); display:flex; flex-direction:column;
+            justify-content:center; align-items:center; cursor:pointer;
+            transition:opacity 1s cubic-bezier(.4,0,.2,1), visibility 1s;
+        }
+        #intro-overlay.fade-out { opacity:0; visibility:hidden; pointer-events:none; }
+        .intro-badge {
+            font-size:0.65rem; text-transform:uppercase; letter-spacing:6px;
+            color:var(--cyan); opacity:0; transform:translateY(20px);
+            animation:iUp 0.8s 0.3s forwards; margin-bottom:28px; font-weight:700;
+        }
+        .intro-title {
+            font-size:clamp(2.2rem,5.5vw,4.5rem); font-weight:800;
+            letter-spacing:-2px; line-height:1.05; text-align:center;
+            opacity:0; transform:translateY(30px); animation:iUp 0.8s 0.6s forwards; color:white;
+        }
+        .intro-title .hl { color:var(--cyan); }
+        .intro-sub {
+            font-size:1rem; color:rgba(255,255,255,0.4); margin-top:20px;
+            opacity:0; transform:translateY(20px); animation:iUp 0.8s 0.9s forwards; letter-spacing:0.5px;
+        }
+        .intro-line { width:60px; height:2px; background:var(--cyan); margin-top:40px; opacity:0; animation:iLine 1s 1.2s forwards; border-radius:2px; }
+        .intro-hint { margin-top:30px; font-size:0.75rem; color:rgba(255,255,255,0.25); letter-spacing:3px; text-transform:uppercase; opacity:0; animation:iPulse 2s 2s infinite; }
+
+        @keyframes iUp { to { opacity:1; transform:translateY(0); } }
+        @keyframes iLine { 0%{opacity:0;width:0} 100%{opacity:1;width:120px} }
+        @keyframes iPulse { 0%,100%{opacity:0.15} 50%{opacity:0.5} }
+
+        /* ===== MAIN LAYOUT ===== */
+        #canvas-container { width:100vw; height:100vh; display:flex; justify-content:center; align-items:center; transition:opacity 0.5s ease; position:relative; z-index:1; }
+
+        /* ===== DOC OVERLAY ===== */
+        #doc-overlay {
+            position:fixed; top:0; left:0; width:100vw; height:100vh;
+            overflow-y:auto; display:none; z-index:50;
+            background:rgba(5,20,97,0.85); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px);
+            opacity:0; transition:opacity 0.5s cubic-bezier(.4,0,.2,1);
+        }
+        #doc-overlay.active { opacity:1; }
+
+        .doc-content {
+            max-width:860px; margin:80px auto 60px; padding:55px 60px 60px;
+            background:rgba(5,20,97,0.9); border-radius:20px;
+            box-shadow:0 30px 100px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+            transform:translateY(40px); animation:docSlideUp 0.6s cubic-bezier(.4,0,.2,1) forwards;
+            position:relative;
+        }
+        @keyframes docSlideUp { to { transform:translateY(0); } }
+
+        .doc-close {
+            position:absolute; top:20px; right:24px;
+            width:40px; height:40px; border-radius:50%;
+            background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1);
+            color:rgba(255,255,255,0.5); font-size:18px; cursor:pointer;
+            display:flex; align-items:center; justify-content:center;
+            transition:all 0.25s ease; font-family:inherit; padding:0;
+        }
+        .doc-close:hover { background:rgba(255,255,255,0.12); color:white; transform:scale(1.05); }
+
+        .doc-content h1 {
+            color:white; font-size:2.4rem; margin-bottom:10px;
+            letter-spacing:-1.5px; font-weight:800; line-height:1.15;
+        }
+        .doc-content h1::after {
+            content:''; display:block; width:60px; height:3px; margin-top:18px;
+            border-radius:3px;
+        }
+        .doc-content[data-category="contextual"] h1::after { background:var(--bright-blue); }
+        .doc-content[data-category="optimisation"] h1::after { background:var(--cyan); }
+        .doc-content[data-category="infrastructure"] h1::after { background:var(--lavender); }
+
+        .doc-content h2 {
+            color:white; font-size:1.35rem; margin-top:45px; margin-bottom:14px;
+            font-weight:700; letter-spacing:-0.3px;
+        }
+        .doc-content h3 { color:white; font-size:1.15rem; margin-top:28px; margin-bottom:10px; font-weight:700; }
+        .doc-content p { line-height:1.85; color:rgba(255,255,255,0.7); margin-bottom:16px; font-size:0.98rem; }
+        .doc-content ul { margin-bottom:22px; padding-left:22px; }
+        .doc-content li { margin-bottom:10px; line-height:1.75; color:rgba(255,255,255,0.7); font-size:0.95rem; }
+        .doc-content li::marker { color:var(--cyan); }
+        .doc-content strong { color:var(--cyan); font-weight:700; }
+        .doc-content blockquote {
+            border-left:3px solid var(--cyan); margin:30px 0; padding:18px 28px;
+            background:rgba(0,255,227,0.04); font-style:italic; color:white;
+            font-size:1.08rem; border-radius:0 12px 12px 0; line-height:1.75;
+        }
+        .doc-meta {
+            font-size:0.72rem; color:rgba(255,255,255,0.25); margin-top:50px;
+            border-top:1px solid rgba(255,255,255,0.06); padding-top:18px;
+            text-transform:uppercase; letter-spacing:2px;
+        }
+
+        /* ===== TECH DEMOS ===== */
+        .tech-demo {
+            margin:28px 0; padding:24px; border-radius:14px;
+            background:rgba(0,255,227,0.03); border:1px solid rgba(255,255,255,0.06);
+        }
+        .tech-demo h4 { color:var(--cyan); font-size:0.8rem; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:16px; }
+        .tech-demo-label { font-size:10px; color:rgba(255,255,255,0.3); margin-top:14px; text-align:center; line-height:1.6; }
+
+        @keyframes signalFlow { 0%{left:-220px;opacity:0} 15%{opacity:1} 85%{opacity:1} 100%{left:calc(100% + 20px);opacity:0} }
+        @keyframes pulse2 { 0%,100%{opacity:0.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.06)} }
+        @keyframes floatY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+        @keyframes barGrow { from{width:0} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+        /* Chat demo */
+        .chat-demo { display:flex; flex-direction:column; gap:10px; }
+        .chat-msg { max-width:85%; padding:10px 16px; border-radius:12px; font-size:12px; line-height:1.55; opacity:0; animation:fadeIn 0.5s ease forwards; color:white; }
+        .chat-user { align-self:flex-end; background:var(--bright-blue); border-bottom-right-radius:4px; }
+        .chat-ai { align-self:flex-start; background:rgba(255,255,255,0.06); border-bottom-left-radius:4px; border:1px solid rgba(255,255,255,0.05); }
+        .chat-ai strong { color:var(--cyan); }
+        .chat-msg:nth-child(1){animation-delay:0.2s} .chat-msg:nth-child(2){animation-delay:0.8s} .chat-msg:nth-child(3){animation-delay:1.6s} .chat-msg:nth-child(4){animation-delay:2.4s} .chat-msg:nth-child(5){animation-delay:3.2s}
+
+        /* Intent signal */
+        .intent-demo { position:relative; height:180px; overflow:hidden; border-radius:10px; background:rgba(5,20,97,0.5); }
+        .intent-signal { position:absolute; height:28px; border-radius:6px; display:flex; align-items:center; padding:0 12px; font-size:10px; font-weight:700; color:white; white-space:nowrap; opacity:0; animation:signalFlow 4.5s ease-in-out infinite; }
+        .intent-signal.s1 { background:var(--bright-blue); top:12px; }
+        .intent-signal.s2 { background:rgba(255,255,255,0.12); top:48px; animation-delay:0.7s; }
+        .intent-signal.s3 { background:var(--bright-blue); top:84px; animation-delay:1.4s; }
+        .intent-signal.s4 { background:rgba(255,255,255,0.12); top:120px; animation-delay:2.1s; }
+        .intent-signal.s5 { background:var(--bright-blue); top:148px; animation-delay:0.4s; }
+        .intent-score-box { position:absolute; right:20px; top:50%; transform:translateY(-50%); width:90px; height:90px; border-radius:50%; border:3px solid var(--cyan); display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--deep-blue); z-index:2; }
+        .intent-score-box .sn { font-size:26px; font-weight:800; color:white; animation:pulse2 3s infinite; }
+        .intent-score-box .sl { font-size:7px; text-transform:uppercase; letter-spacing:1px; color:rgba(255,255,255,0.5); }
+
+        /* Relevance */
+        .rel-demo { display:flex; gap:16px; align-items:center; justify-content:center; flex-wrap:wrap; }
+        .rel-pair { display:flex; flex-direction:column; align-items:center; gap:6px; }
+        .rel-box { width:110px; height:65px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; text-align:center; padding:8px; color:white; }
+        .rel-box.cr { background:var(--bright-blue); }
+        .rel-box.pg { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); }
+        .rel-conn { font-size:18px; color:rgba(255,255,255,0.25); animation:pulse2 1.5s infinite; }
+        .rel-score { padding:8px 18px; border-radius:20px; font-weight:800; font-size:15px; color:white; }
+        .rel-score.hi { background:var(--green); color:var(--deep-blue); animation:pulse2 2s infinite; }
+        .rel-score.lo { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.35); }
+
+        /* Architecture */
+        .arch-diagram { display:flex; justify-content:center; gap:18px; flex-wrap:wrap; align-items:center; }
+        .arch-node { width:95px; height:95px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:white; }
+        .arch-node.blue { background:var(--bright-blue); animation:floatY 3s ease-in-out infinite; }
+        .arch-node.outline { background:transparent; border:2px solid var(--bright-blue); animation:floatY 3s ease-in-out 0.5s infinite; }
+        .arch-node .ai { font-size:18px; margin-bottom:4px; }
+        .arch-arrow { font-size:16px; color:rgba(255,255,255,0.2); }
+
+        /* Emotion bars */
+        .emo-demo { display:flex; flex-direction:column; gap:10px; }
+        .emo-row { display:flex; align-items:center; gap:10px; }
+        .emo-label { width:70px; font-size:10px; font-weight:700; text-align:right; color:rgba(255,255,255,0.5); }
+        .emo-track { flex:1; height:22px; background:rgba(255,255,255,0.03); border-radius:4px; overflow:hidden; }
+        .emo-fill { height:100%; border-radius:4px; display:flex; align-items:center; padding-left:8px; font-size:9px; font-weight:700; color:white; animation:barGrow 2s ease forwards; }
+        .emo-fill.b { background:var(--bright-blue); }
+        .emo-fill.c { background:var(--cyan); color:var(--deep-blue); }
+
+        /* Funnel */
+        .funnel-demo { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; }
+        .funnel-stage { display:flex; flex-direction:column; align-items:center; gap:5px; }
+        .funnel-box { border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; color:white; }
+        .funnel-box.raw { width:85px; height:65px; background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.35); animation:pulse2 3s infinite; }
+        .funnel-box.mid { width:70px; height:55px; background:var(--bright-blue); animation:pulse2 3s 0.4s infinite; }
+        .funnel-box.done { width:60px; height:50px; background:var(--cyan); color:var(--deep-blue); animation:pulse2 3s 0.8s infinite; }
+        .funnel-label { font-size:8px; text-transform:uppercase; letter-spacing:0.5px; color:rgba(255,255,255,0.35); }
+        .funnel-arr { font-size:16px; color:rgba(255,255,255,0.12); }
+
+        /* Latency */
+        .lat-demo { display:flex; gap:25px; justify-content:center; flex-wrap:wrap; }
+        .lat-item { text-align:center; }
+        .lat-circle { width:80px; height:80px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; margin:0 auto 8px; color:white; }
+        .lat-circle.old { background:rgba(255,255,255,0.04); border:2px solid rgba(255,255,255,0.12); }
+        .lat-circle.new { background:var(--bright-blue); border:2px solid var(--cyan); animation:pulse2 2s infinite; }
+        .lat-circle .ln { font-size:20px; font-weight:800; }
+        .lat-circle .lu { font-size:7px; text-transform:uppercase; letter-spacing:0.5px; opacity:0.7; }
+        .lat-label { font-size:9px; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:0.5px; }
+
+        /* Pillar */
+        .pillar-demo { display:flex; justify-content:center; gap:10px; align-items:flex-end; flex-wrap:wrap; height:130px; }
+        .pillar { display:flex; flex-direction:column; align-items:center; gap:4px; justify-content:flex-end; }
+        .pillar-bar { width:40px; border-radius:4px 4px 0 0; animation:pillarRise 1.5s ease-out forwards; height:0; }
+        .pillar-bar.b { background:var(--bright-blue); }
+        .pillar-bar.c { background:var(--cyan); }
+        .pillar-nm { font-size:7px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:rgba(255,255,255,0.4); text-align:center; width:60px; }
+        @keyframes pillarRise { to { height:var(--h); } }
+
+        /* Marketplace */
+        .mkt-demo { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+        .mkt-tile { padding:12px; border-radius:8px; text-align:center; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; opacity:0; animation:fadeIn 0.4s ease forwards; color:white; }
+        .mkt-tile.b { background:var(--bright-blue); }
+        .mkt-tile.c { background:var(--lavender); color:white; }
+        .mkt-tile:nth-child(1){animation-delay:0.1s} .mkt-tile:nth-child(2){animation-delay:0.2s} .mkt-tile:nth-child(3){animation-delay:0.3s} .mkt-tile:nth-child(4){animation-delay:0.4s} .mkt-tile:nth-child(5){animation-delay:0.5s} .mkt-tile:nth-child(6){animation-delay:0.6s}
+
+        /* ===== NAV BAR ===== */
+        .nav-bar {
+            position:fixed; top:0; left:0; right:0; z-index:100;
+            padding:16px 28px; display:flex; flex-direction:column; gap:10px;
+            pointer-events:none;
+            background:linear-gradient(180deg,rgba(5,20,97,0.95) 0%,rgba(5,20,97,0.7) 70%,transparent 100%);
+        }
+        .nav-controls { display:flex; gap:8px; pointer-events:all; align-items:center; flex-wrap:wrap; }
+
+        button {
+            padding:8px 18px; background:rgba(255,255,255,0.06); color:white;
+            border:1px solid rgba(255,255,255,0.08); border-radius:10px;
+            font-family:'Modern Era',sans-serif; font-size:12px; font-weight:700;
+            cursor:pointer; transition:all 0.3s cubic-bezier(.4,0,.2,1);
+            display:flex; align-items:center; gap:6px; white-space:nowrap;
+        }
+        button:hover { background:rgba(255,255,255,0.12); color:white; border-color:rgba(255,255,255,0.15); transform:translateY(-1px); }
+
+        #back-btn, #home-btn {
+            opacity:0; transform:translateX(-8px); pointer-events:none;
+            transition:all 0.4s cubic-bezier(.4,0,.2,1);
+        }
+        #back-btn.visible, #home-btn.visible { opacity:1; transform:translateX(0); pointer-events:all; }
+
+        #report-btn {
+            background:var(--bright-blue); color:white; border:none;
+            opacity:0; pointer-events:none; transform:scale(0.95);
+            transition:all 0.4s cubic-bezier(.4,0,.2,1); font-weight:800;
+            padding:8px 20px; border-radius:10px;
+        }
+        #report-btn.visible { opacity:1; pointer-events:all; transform:scale(1); }
+        #report-btn:hover { background:var(--cyan); color:var(--deep-blue); }
+
+        .filter-container { position:relative; display:inline-block; }
+        .filter-select {
+            appearance:none; -webkit-appearance:none;
+            padding:8px 34px 8px 16px; background:rgba(255,255,255,0.06);
+            color:white; border:1px solid rgba(255,255,255,0.08);
+            border-radius:10px; font-family:'Modern Era',sans-serif;
+            font-size:12px; font-weight:700; cursor:pointer; outline:none;
+            transition:all 0.3s ease; min-width:190px;
+        }
+        .filter-select option, .filter-select optgroup { background:var(--deep-blue); color:white; }
+        .filter-select:hover { border-color:rgba(255,255,255,0.2); background:rgba(255,255,255,0.1); }
+        .filter-select:focus { border-color:var(--cyan); }
+        .filter-arrow { position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--cyan); font-size:9px; }
+
+        .breadcrumbs {
+            font-size:12px; color:rgba(255,255,255,0.3); pointer-events:all;
+            display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-weight:500;
+        }
+        .breadcrumb-item { cursor:pointer; transition:all 0.25s; padding:2px 0; border-bottom:1px solid transparent; color:rgba(255,255,255,0.3); }
+        .breadcrumb-item:hover { color:var(--cyan); border-bottom-color:var(--cyan); }
+        .breadcrumb-separator { opacity:0.25; font-size:8px; color:white; }
+        .breadcrumb-current { color:white; font-weight:700; cursor:default; }
+
+        /* ===== NODES ===== */
+        .node circle { transition:all 0.5s cubic-bezier(.4,0,.2,1); cursor:pointer; }
+        .node:hover circle { filter:drop-shadow(0 0 25px rgba(0,255,227,0.25)); }
+
+        .node-content {
+            display:flex; flex-direction:column; justify-content:center; align-items:center;
+            text-align:center; color:white; height:100%; width:100%;
+            padding:20px; box-sizing:border-box; pointer-events:none;
+            word-wrap:break-word; user-select:none;
+        }
+        .focused h1 { font-size:3.5vmin; margin:0; line-height:1.1; letter-spacing:-0.03em; font-weight:800; color:white; }
+        .focused h2 { font-size:2.5vmin; margin:0; line-height:1.2; font-weight:800; color:white; }
+        .focused h3 { font-size:2.2vmin; margin:0; line-height:1.3; color:white; font-weight:700; }
+        .focused .summary-text { font-size:1.8vmin; margin-top:15px; line-height:1.6; max-width:85%; opacity:0.5; color:white; }
+        .focused .detail-container { text-align:center; font-size:1.8vmin; line-height:1.7; overflow-y:auto; max-height:100%; padding-right:10px; pointer-events:all; color:white; }
+        .focused .detail-container strong { color:var(--cyan); display:block; margin-bottom:8px; font-size:2vmin; border-bottom:1px solid rgba(0,255,227,0.15); padding-bottom:5px; }
+        .focused .quote-style { font-style:italic; color:white; font-weight:600; font-size:2.2vmin; line-height:1.5; display:block; }
+        .peripheral h3 { font-size:2.2vmin; font-weight:700; margin:0; line-height:1.2; color:white; }
+        .category-header h3 {
+            font-size:2.6vmin; color:white; text-transform:uppercase;
+            letter-spacing:4px; padding-bottom:10px; cursor:pointer; font-weight:800;
+            border-bottom:2px solid var(--cyan);
+        }
+
+        .fallback-logo {
+            width:100%; height:100%; border-radius:50%;
+            display:flex; justify-content:center; align-items:center;
+            padding:20px; text-align:center; cursor:pointer;
+            transition:all 0.4s cubic-bezier(.4,0,.2,1);
+        }
+        .node:hover .fallback-logo { transform:scale(1.05); }
+        .fallback-logo span { font-weight:800; font-size:2.5vmin; color:white; line-height:1.1; }
+
+        .node-tooltip {
+            position:fixed; padding:10px 18px;
+            background:rgba(5,20,97,0.95); border:1px solid rgba(0,255,227,0.2);
+            border-radius:12px; font-size:12px; font-weight:700; color:white;
+            pointer-events:none; opacity:0; transform:translateY(6px);
+            transition:all 0.25s cubic-bezier(.4,0,.2,1); z-index:200; white-space:nowrap;
+            backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+        }
+        .node-tooltip.visible { opacity:1; transform:translateY(0); }
+        .node-tooltip .tt-hint { font-size:10px; color:var(--cyan); margin-top:3px; font-weight:500; }
+
+        .view-badge {
+            position:fixed; bottom:20px; right:24px; z-index:100;
+            padding:8px 16px; background:rgba(5,20,97,0.7); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+            border:1px solid rgba(255,255,255,0.06); border-radius:10px;
+            font-size:10px; color:rgba(255,255,255,0.3); letter-spacing:1.5px;
+            text-transform:uppercase; font-weight:700; display:flex; align-items:center; gap:8px;
+        }
+        .view-badge .dot { width:5px; height:5px; border-radius:50%; background:var(--green); animation:pulse2 2s infinite; }
+
+        .key-hint {
+            position:fixed; bottom:20px; left:24px; z-index:100;
+            padding:8px 14px; background:rgba(5,20,97,0.7); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+            border:1px solid rgba(255,255,255,0.06); border-radius:10px;
+            font-size:10px; color:rgba(255,255,255,0.25); font-weight:500;
+            display:flex; align-items:center; gap:6px;
+            opacity:0; transition:opacity 0.5s ease;
+        }
+        .key-hint.visible { opacity:1; }
+        .key-hint kbd {
+            padding:2px 7px; background:rgba(255,255,255,0.07);
+            border-radius:4px; font-family:'Modern Era',monospace;
+            font-size:9px; border:1px solid rgba(255,255,255,0.08); color:white;
+        }
+
+        ::-webkit-scrollbar { width:5px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:rgba(0,255,227,0.3); border-radius:5px; }
+        ::-webkit-scrollbar-thumb:hover { background:var(--cyan); }
+
+        @media (max-width: 768px) {
+            .doc-content { margin:70px 12px 40px; padding:30px 24px 36px; border-radius:16px; }
+            .doc-content h1 { font-size:1.8rem; }
+            .nav-bar { padding:12px 16px; }
+            .filter-select { min-width:150px; font-size:11px; }
+        }
+    </style>
+</head>
+<body>
+<canvas id="particle-canvas"></canvas>
+
+<div id="intro-overlay">
+    <div class="intro-badge">IAB UK — AI in Ad Tech</div>
+    <div class="intro-title">The <span class="hl">AI Ecosystem</span><br>Explored</div>
+    <div class="intro-sub">An interactive map of AI-powered advertising technology</div>
+    <div class="intro-line"></div>
+    <div class="intro-hint">Click anywhere to enter</div>
+</div>
+
+<div class="nav-bar">
+    <div class="nav-controls">
+        <button id="home-btn" onclick="goHome()">&#8962; Home</button>
+        <button id="back-btn" onclick="goUp()">&#8592; Back</button>
+        <div class="filter-container">
+            <select id="node-filter" class="filter-select" onchange="filterNavigate(this.value)">
+                <option value="root">All Categories</option>
+            </select>
+            <div class="filter-arrow">&#9660;</div>
+        </div>
+        <button id="report-btn" onclick="toggleDocumentView()">View Full Report</button>
+    </div>
+    <div id="breadcrumbs" class="breadcrumbs"></div>
+</div>
+
+<div id="canvas-container"></div>
+
+<div id="doc-overlay">
+    <div id="doc-content-area" class="doc-content">
+        <button class="doc-close" onclick="toggleDocumentView()">&#10005;</button>
+    </div>
+</div>
+
+<div id="node-tooltip" class="node-tooltip"></div>
+<div class="view-badge"><div class="dot"></div> To contribute, contact adtech@iabuk.com</div>
+<div id="key-hint" class="key-hint"><kbd>Esc</kbd> Go back &nbsp; <kbd>Click</kbd> Explore</div>
+
+<script>
+/* ===== CATEGORY COLOR MAP ===== */
+const catColors = {
+    contextual: '#0078f0',
+    optimisation: '#f2abff',
+    infrastructure: '#9499ff'
+};
+
+function getCatForNode(d) {
+    let cur = d;
+    while(cur) {
+        if(cur.data && cur.data.id && catColors[cur.data.id]) return cur.data.id;
+        cur = cur.parent;
+    }
+    return 'contextual';
+}
+
+function getCatColor(d) {
+    return catColors[getCatForNode(d)] || catColors.contextual;
+}
+
+/* ===== REPORT CONTENT ===== */
+function nanoReport(){return `<h1>Nano Interactive — LIIFT™</h1><p><strong>Company:</strong> Nano Interactive | <strong>Product:</strong> LIIFT™ (Live Intent Identity-Free Targeting) | <strong>Website:</strong> nanointeractive.com</p><p>Nano Interactive is a global leader in ID-free intent targeting, specialising in privacy-first advertising technology. With over 2,500 campaigns delivered across mobile, video, and display formats in over 100 languages, Nano has established itself as the innovator in identity-free solutions.</p><h2>Practical Demo: How an Advertiser Uses LIIFT™</h2><div class="tech-demo"><h4>Advertiser Campaign Setup</h4><div class="chat-demo"><div class="chat-msg chat-user">I want to target "running shoe" intenders across UK, no cookies or IDs.</div><div class="chat-msg chat-ai"><strong>LIIFT™:</strong> Understood. I've identified <strong>3 Intent Personas</strong> matching your brief: Fitness Enthusiasts, Marathon Runners, Sports Shoppers. Live intent signals are now active across 100% of the open web.</div><div class="chat-msg chat-user">Add sentiment filtering — positive only.</div><div class="chat-msg chat-ai"><strong>Contexta Engine:</strong> Sentiment filter applied (+0.5 to +1.0). Your ads will only appear alongside positively-toned content about running, fitness, and sport. <strong>4.2M daily impressions</strong> estimated.</div><div class="chat-msg chat-ai"><strong>Optimisation:</strong> Campaign live. CIS scoring every impression in real-time. Current avg. Consumer Intent Score: <strong>87/100</strong>. Time-in-view optimisation active.</div></div><div class="tech-demo-label">A real workflow: advertiser sets keywords + persona, LIIFT™ activates across 100% of the open web with zero personal identifiers.</div></div><h2>How It Actually Works: Scoring a Single Impression</h2><p>When a user loads a page, LIIFT™ evaluates the impression in real-time using three distinct layers — with no cookies, user IDs, or personal data involved at any stage.</p><div class="tech-demo"><h4>Step 1 — Intent Graph: What Search Brought the User Here?</h4><div class="intent-demo"><div class="intent-signal s1">"best trail running shoes"</div><div class="intent-signal s2">"marathon training plan week 12"</div><div class="intent-signal s3">"compare Hoka vs Brooks cushioning"</div><div class="intent-signal s4">"parkrun near me Saturday"</div><div class="intent-signal s5">"recovery nutrition after long run"</div><div class="intent-score-box"><div class="sn">4.9B</div><div class="sl">Daily Signals</div></div></div><div class="tech-demo-label">The Intent Graph processes 4.9 billion search-derived signals daily. It doesn't track individual users — it maps which search queries are driving traffic to which content across the open web, creating a real-time map of intent by topic and page.</div></div><div class="tech-demo"><h4>Step 2 — Contexta Engine: What Does This Page Actually Mean?</h4><div class="emo-demo"><div class="emo-row"><div class="emo-label">Topic</div><div class="emo-track"><div class="emo-fill b" style="width:92%;">Running Gear Reviews</div></div></div><div class="emo-row"><div class="emo-label">Entities</div><div class="emo-track"><div class="emo-fill c" style="width:85%;">Nike, Adidas, Trail, Marathon</div></div></div><div class="emo-row"><div class="emo-label">Sentiment</div><div class="emo-track"><div class="emo-fill b" style="width:78%;">+0.82 (Positive)</div></div></div><div class="emo-row"><div class="emo-label">Persona</div><div class="emo-track"><div class="emo-fill c" style="width:88%;">Marathon Runner — 94% match</div></div></div></div><div class="tech-demo-label">The Contexta Engine uses vectorisation and NLP to analyse the full page — not just keywords. It extracts topic, named entities, sentiment (scored from -1 to +1), and maps the content against Nano's 60+ ML-created Intent Personas. All of this happens without reading any user data.</div></div><div class="tech-demo"><h4>Step 3 — Consumer Intent Score: Should This Ad Be Served?</h4><div class="rel-demo"><div class="rel-pair"><div class="rel-box cr">Intent Graph<br>Signal: 91</div><div class="rel-box pg">Contexta<br>Analysis: 88</div></div><div class="rel-conn">+</div><div class="rel-pair"><div class="rel-box cr">Sentiment<br>Filter: ✓</div><div class="rel-box pg">Historical<br>Perf: 84</div></div><div class="rel-conn">=</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score hi">CIS: 94</div><div style="font-size:9px;color:rgba(255,255,255,0.4);">Serve Ad ✓</div></div></div><div class="tech-demo-label">The 15-point Consumer Intent Score algorithm combines: (1) Intent Graph search signal strength, (2) Contexta Engine semantic analysis, (3) sentiment pass/fail, and (4) historical placement performance data via ML prediction. Each impression is scored individually. Only impressions meeting the CIS threshold are served — all without a single personal identifier.</div></div><h2>Core AI Capabilities</h2><ul><li><strong>Consumer Intent Score (CIS):</strong> 15-point algorithm combining NLP semantic understanding, entity analysis, sentiment scoring (+1 to -1), and ML-based performance prediction.</li><li><strong>Intent Graph Technology:</strong> Processes 4.9B+ daily intent signals from search engines to create real-time targeting strategies.</li><li><strong>Contexta Engine:</strong> Vectorisation and semantic analysis for deeper meaning, sentiment, and context — across 100+ languages.</li><li><strong>Intent Personas:</strong> 60+ ready-to-use demographic personas created via ML, verified by consumer panel data — all without cookies or IDs.</li></ul><h2>Strategic Positioning</h2><blockquote>"Sophisticated targeting is not only possible without personal identifiers, but delivers superior results. LIIFT™ extends reach to 100% of the open web."</blockquote><div class="doc-meta">Profile Last Updated: November 2025 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+function raasReport(){return `<h1>RAAS LAB — Agentic Relevance Platform</h1><p><strong>Company:</strong> RAAS LAB (Relevant Advertising At Scale) | <strong>Product:</strong> Agentic Relevance Platform &amp; Relevant Marketplace (RMP) | <strong>Website:</strong> raaslab.com</p><p>RAAS LAB is the only agentic platform that understands and activates on the relevance between creative and media placement. Campaigns with a 70%+ relevance score see +21% brand lift, 35% more attention, and 30% lower CPA.</p><h2>Practical Demo: How Relevance Matching Works</h2><div class="tech-demo"><h4>Creative ↔ Placement Matching in Real-Time</h4><div class="rel-demo"><div class="rel-pair"><div class="rel-box cr">Running<br>Shoe Ad</div><div class="rel-box pg">Marathon<br>Training Blog</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score hi">92 / 100</div><div style="font-size:9px;color:rgba(255,255,255,0.4);">High Relevance ✓</div></div><div style="width:30px"></div><div class="rel-pair"><div class="rel-box cr">Running<br>Shoe Ad</div><div class="rel-box pg">Finance<br>News</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score lo">12 / 100</div><div style="font-size:9px;color:rgba(255,255,255,0.25);">Blocked ✕</div></div></div><div class="tech-demo-label">RAAS LAB scores every single impression 0-100 for relevance between the creative message and page content. Only high-scoring matches are served.</div></div><h2>How It Actually Works: Matching a Single Impression</h2><p>Unlike traditional contextual tools that only classify pages, RAAS LAB's agent analyses <em>both</em> the creative asset and the page content, then computes a semantic relevance score between the two — at the individual impression level.</p><div class="tech-demo"><h4>Step 1 — Creative Analysis: What Is This Ad Actually About?</h4><div class="emo-demo"><div class="emo-row"><div class="emo-label">Message</div><div class="emo-track"><div class="emo-fill b" style="width:90%;">Trail running shoes for mountain terrain</div></div></div><div class="emo-row"><div class="emo-label">Visual</div><div class="emo-track"><div class="emo-fill c" style="width:82%;">Mountain, runner, product close-up</div></div></div><div class="emo-row"><div class="emo-label">CTA</div><div class="emo-track"><div class="emo-fill b" style="width:70%;">Shop now — free returns</div></div></div><div class="emo-row"><div class="emo-label">Brand</div><div class="emo-track"><div class="emo-fill c" style="width:95%;">Outdoor / Performance / Adventure</div></div></div></div><div class="tech-demo-label">The agent analyses the creative asset — text, imagery (via AI image recognition), CTA, and brand positioning — to build a semantic profile of what this ad communicates. This profile is what gets matched against page content.</div></div><div class="tech-demo"><h4>Step 2 — Page Crawl: Classify the URL in Under 1 Hour</h4><div class="arch-diagram"><div class="arch-node blue"><div class="ai">&#x1F310;</div>URL<br>Received</div><div class="arch-arrow">→</div><div class="arch-node outline"><div class="ai">&#x1F50D;</div>Full Page<br>Crawl</div><div class="arch-arrow">→</div><div class="arch-node blue"><div class="ai">AI</div>Semantic<br>Classify</div><div class="arch-arrow">→</div><div class="arch-node outline"><div class="ai">&#x1F4CA;</div>Content<br>Web Built</div></div><div class="tech-demo-label">RAAS LAB's proprietary ad server crawls and classifies URLs within 1 hour — vs. the 48-hour industry standard. It builds a dynamic "content web" of related topics, discovering relevant placements that human planners would miss. This is how the system finds, for example, that an article about Alpine hiking is semantically relevant to trail running gear.</div></div><div class="tech-demo"><h4>Step 3 — Relevance Score: Creative vs. Page at Impression Level</h4><div class="rel-demo"><div class="rel-pair"><div class="rel-box cr">Trail Shoe<br>Creative Profile</div><div class="rel-box pg">Alpine Hiking<br>Guide Article</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score hi">87 / 100</div><div style="font-size:9px;color:rgba(255,255,255,0.4);">Serve — High Relevance ✓</div></div><div style="width:30px"></div><div class="rel-pair"><div class="rel-box cr">Trail Shoe<br>Creative Profile</div><div class="rel-box pg">Celebrity<br>Gossip Page</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score lo">8 / 100</div><div style="font-size:9px;color:rgba(255,255,255,0.25);">Block ✕</div></div></div><div class="tech-demo-label">The semantic profiles of the creative and the page are compared to produce a 0-100 relevance score. The agent selects BOTH creative variant and placement in unison — if you have 5 creative variants, it matches the most relevant variant to each page. Only impressions scoring above the threshold are served, with full transparency on where and why every ad appeared.</div></div><h2>Proven Results</h2><p>Campaigns with 70%+ relevance: <strong>+21% average brand lift</strong>, <strong>35% increase in attention</strong>, <strong>0.5% engagement rate</strong>, <strong>30% decrease in CPA</strong>.</p><h2>Strategic Positioning</h2><blockquote>"In just one second, RAAS LAB achieves what takes other programmatic tools 9.5 years of manual effort. We're the only technology that offers full visibility into where and why every ad is served." — Thomas Ives</blockquote><div class="doc-meta">Profile Last Updated: February 2026 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+function scope3Report(){return `<h1>Scope3 — Agentic Advertising Platform</h1><p><strong>Company:</strong> Scope3 | <strong>Product:</strong> Agentic Media Platform | <strong>Website:</strong> scope3.com</p><p>Founded by Brian O'Kelley (co-founder of AppNexus), Scope3 is the leading platform for agentic advertising. Brands design, deploy, and manage AI agents that make real-time media buying decisions.</p><h2>Practical Demo: Setting Up a Brand Agent</h2><div class="tech-demo"><h4>How a Brand Deploys an Agent on Scope3</h4><div class="chat-demo"><div class="chat-msg chat-user">Create a brand agent for Acme Sports. Goals: performance + low carbon. Block MFA sites.</div><div class="chat-msg chat-ai"><strong>Scope3 Platform:</strong> Brand Standards agent created. Rules configured: ✓ Viewability &gt;70% ✓ Carbon cap: 50g CO2/1000 impressions ✓ MFA blocked ✓ Brand safety: strict</div><div class="chat-msg chat-user">Deploy to our DSP partners — DV360 and The Trade Desk.</div><div class="chat-msg chat-ai"><strong>Deployed.</strong> Agent is now live on Equativ, Index Exchange, and OpenX SSPs. Executing via your DSP seats. Real-time: the agent is evaluating inventory, negotiating with seller agents, and blocking 23% of impressions that don't meet your standards.</div><div class="chat-msg chat-ai"><strong>Live Status:</strong> 847K impressions evaluated | 651K served | Avg carbon: 31g CO2 | Viewability: 78% | MFA blocked: 196K</div></div><div class="tech-demo-label">Brands use natural language to configure agents, then deploy across the programmatic ecosystem. Agents run autonomously 24/7.</div></div><h2>How It Actually Works: Building &amp; Training a Brand Agent</h2><p>Scope3 Brand Agents are not pre-configured filters. They are bespoke AI agents trained through a human-in-the-loop process where the brand teaches the agent how to think about media quality.</p><div class="tech-demo"><h4>Step 1 — Foundation: Built-In Safety Layer</h4><div class="emo-demo"><div class="emo-row"><div class="emo-label">Violence</div><div class="emo-track"><div class="emo-fill b" style="width:100%;">Auto-blocked ✕</div></div></div><div class="emo-row"><div class="emo-label">Hate Speech</div><div class="emo-track"><div class="emo-fill b" style="width:100%;">Auto-blocked ✕</div></div></div><div class="emo-row"><div class="emo-label">Illegal</div><div class="emo-track"><div class="emo-fill b" style="width:100%;">Auto-blocked ✕</div></div></div><div class="emo-row"><div class="emo-label">MFA Sites</div><div class="emo-track"><div class="emo-fill c" style="width:100%;">Auto-blocked ✕</div></div></div></div><div class="tech-demo-label">Every agent starts with automatic exclusions for violent, hateful, illegal, and MFA content — no configuration needed. This replaces traditional keyword blocklists with semantic understanding.</div></div><div class="tech-demo"><h4>Step 2 — Human-in-the-Loop Training</h4><div class="chat-demo"><div class="chat-msg chat-ai"><strong>Scope3:</strong> Review these content examples. Label each as <strong>aligned</strong> or <strong>unaligned</strong> with your brand standards.</div><div class="chat-msg chat-user">Article about sustainable manufacturing → ✓ Aligned. Clickbait listicle with low editorial quality → ✕ Unaligned. Serious investigative journalism about pollution → ✓ Aligned.</div><div class="chat-msg chat-ai"><strong>Agent calibrated.</strong> Now describe your brand values, tone, and guardrails in natural language.</div><div class="chat-msg chat-user">We are a premium outdoor brand. We value environmental responsibility, editorial quality, and authentic storytelling. Avoid sensationalism, low-quality environments, and content that trivialises environmental issues.</div><div class="chat-msg chat-ai"><strong>Brand Standards model trained.</strong> Your agent now evaluates every impression through your brand's lens. You can add domain lists, geographic restrictions, and select from 14 verticals for additional precision.</div></div><div class="tech-demo-label">The brand trains the agent by labelling real content examples (aligned/unaligned) and providing natural language descriptions of values and guardrails. This is not settings configuration — it's teaching an AI how to think like your team.</div></div><div class="tech-demo"><h4>Step 3 — Live Deployment: Agent Evaluates Every Impression</h4><div class="arch-diagram"><div class="arch-node blue"><div class="ai">&#x1F3AF;</div>Brand<br>Agent</div><div class="arch-arrow">→</div><div class="arch-node outline"><div class="ai">&#x1F50D;</div>Evaluate<br>Impression</div><div class="arch-arrow">→</div><div class="arch-node blue"><div class="ai">&#x2696;</div>Quality +<br>Carbon + Safety</div><div class="arch-arrow">→</div><div class="arch-node outline"><div class="ai">✓/✕</div>Serve or<br>Block</div><div class="arch-arrow">→</div><div class="arch-node blue"><div class="ai">&#x1F4CA;</div>Report &<br>Refine</div></div><div class="tech-demo-label">Once deployed (via creative tag pasted into any DSP), the agent evaluates every impression against your trained standards. Post-impression reporting lets you review edge cases and reclassify content, creating a feedback loop that continuously improves the agent's accuracy. The agent keeps learning after launch.</div></div><h2>Core AI Capabilities</h2><ul><li><strong>Brand Agents:</strong> Custom AI agents configured via natural language. Enforce media quality, sustainability, and performance goals autonomously across the ecosystem.</li><li><strong>Signal Loss Solution:</strong> Agents deployed at the point of transaction use near-perfect publisher data, solving for signal distortion across supply chain hops.</li><li><strong>MCP Integration:</strong> Model Control Protocol enables agents to communicate across diverse systems throughout the supply chain.</li></ul><h2>Strategic Positioning</h2><blockquote>"Agentic advertising introduces AI-driven agents capable of making real-time decisions on behalf of advertisers — solving for signal loss while driving better marketing outcomes."</blockquote><div class="doc-meta">Profile Last Updated: February 2026 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+function seedtagReport(){return `<h1>Seedtag — Neuro-Contextual AI</h1><p><strong>Company:</strong> Seedtag | <strong>Product:</strong> Liz (Neuro-Contextual AI) | <strong>Website:</strong> seedtag.com</p><p>Seedtag is the global leader in contextual advertising, powered by Liz — a Neuro-Contextual AI processing 60M+ articles daily across 20,000+ publisher integrations.</p><h2>Practical Demo: How Liz Matches Ads to Content</h2><div class="tech-demo"><h4>Advertiser Uploads Brief → Liz Finds the Perfect Moments</h4><div class="chat-demo"><div class="chat-msg chat-user">Brief: luxury watch brand. Target: affluent men 35-55 feeling aspirational. No negative news contexts.</div><div class="chat-msg chat-ai"><strong>Liz Agent:</strong> Analysing brief. I've identified 14,200 live articles matching aspirational + luxury signals. Top contexts: travel destinations, business success stories, architecture, fine dining.</div><div class="chat-msg chat-ai"><strong>Emotion Analysis:</strong> Filtering for dominant emotions — Aspiration (89%), Trust (76%), Joy (71%). Excluding: Fear, Anger, Sadness contexts. <strong>Predicted engagement: 350% above non-contextual baseline.</strong></div><div class="chat-msg chat-user">Add CTV inventory.</div><div class="chat-msg chat-ai"><strong>CTV enabled.</strong> Liz now scanning video content across CTV partners. 3,200 premium video placements identified with matching emotional signatures. Campaign ready across open web + CTV.</div></div><div class="tech-demo-label">Advertisers upload a brief, Liz Agent automatically finds emotionally-matched content across web and CTV — no keywords needed.</div></div><h2>How It Actually Works: Liz Analysing a Single Article</h2><p>When Liz processes a page, it doesn't just read topics — it decodes interest, emotion, and intent using 40+ advertising-specific AI models built on transformer embeddings and neuroscience principles. Here's what happens when Liz encounters an article titled "The Art of Slow Travel: Why Taking the Scenic Route Changes Everything."</p><div class="tech-demo"><h4>Step 1 — Semantic Analysis: What Is This Article About?</h4><div class="emo-demo"><div class="emo-row"><div class="emo-label">Category</div><div class="emo-track"><div class="emo-fill b" style="width:95%;">Travel &gt; Lifestyle Travel &gt; Slow Travel</div></div></div><div class="emo-row"><div class="emo-label">Entities</div><div class="emo-track"><div class="emo-fill c" style="width:80%;">Amalfi Coast, Orient Express, Kyoto, Patagonia</div></div></div><div class="emo-row"><div class="emo-label">Sub-Topics</div><div class="emo-track"><div class="emo-fill b" style="width:88%;">Mindfulness, Luxury, Cultural Immersion, Nature</div></div></div></div><div class="tech-demo-label">Liz uses transformer embeddings to analyse the full article text, extracting granular topics, named entities, and sub-topics. This happens at 800+ URLs per second, generating 2B+ HTTP requests daily across 60M+ articles.</div></div><div class="tech-demo"><h4>Step 2 — Neuro-Contextual Emotion Decoding</h4><div class="emo-demo"><div class="emo-row"><div class="emo-label">Aspiration</div><div class="emo-track"><div class="emo-fill b" style="width:91%;">91%</div></div></div><div class="emo-row"><div class="emo-label">Serenity</div><div class="emo-track"><div class="emo-fill c" style="width:84%;">84%</div></div></div><div class="emo-row"><div class="emo-label">Trust</div><div class="emo-track"><div class="emo-fill b" style="width:78%;">78%</div></div></div><div class="emo-row"><div class="emo-label">Joy</div><div class="emo-track"><div class="emo-fill c" style="width:72%;">72%</div></div></div><div class="emo-row"><div class="emo-label">Fear</div><div class="emo-track"><div class="emo-fill b" style="width:3%;">3%</div></div></div></div><div class="tech-demo-label">This is what makes Seedtag "neuro-contextual" — Liz doesn't just know the topic is travel, it understands the article evokes aspiration and serenity (not fear or urgency). The emotional signature is derived from AI models trained on neuroscience research into how content affects consumer receptivity to brand messages.</div></div><div class="tech-demo"><h4>Step 3 — Brand Matching: Which Advertisers Belong Here?</h4><div class="rel-demo"><div class="rel-pair"><div class="rel-box cr">Luxury Watch<br>Brief: Aspiration</div><div class="rel-box pg">Slow Travel<br>Emotion: 91% Aspiration</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score hi">94%</div><div style="font-size:9px;color:rgba(255,255,255,0.4);">Strong Emotional Match ✓</div></div><div style="width:30px"></div><div class="rel-pair"><div class="rel-box cr">Fast Food<br>Brief: Impulse/Fun</div><div class="rel-box pg">Slow Travel<br>Emotion: 91% Aspiration</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score lo">22%</div><div style="font-size:9px;color:rgba(255,255,255,0.25);">Emotional Mismatch ✕</div></div></div><div class="tech-demo-label">Liz matches the article's emotional signature against each advertiser's brief. The luxury watch brand seeking "aspiration" is a 94% emotional match — even though the article isn't about watches. The fast food brand seeking "impulse/fun" is a poor match despite also being a consumer brand. This is how Seedtag "sells the moment and the emotion" — not just the topic.</div></div><h2>Strategic Positioning</h2><blockquote>"We can sell the moment and the emotion. Neuro-contextual advertising achieves 350% higher emotional engagement than non-contextual." — Brian Gleason, CEO</blockquote><div class="doc-meta">Profile Last Updated: February 2026 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+function smartologyReport(){return `<h1>Smartology — SmartMatch™ Contextual Platform</h1><p><strong>Company:</strong> Smartology | <strong>Product:</strong> SmartMatch™ SaaS Platform | <strong>Website:</strong> smartology.net</p><p>Smartology is a specialist in AI-driven contextual advertising, founded in 2010 by CEO Mark Bembridge. The company matches branded content — typically thought leadership and editorial assets — with semantically relevant articles across a curated network of over 200 premium publishers. Entirely cookie-free since inception, SmartMatch™ delivers advertising that respects user privacy while consistently outperforming traditional audience-based targeting on engagement metrics.</p><h2>Practical Demo: How an Advertiser Uses SmartMatch™</h2><div class="tech-demo"><h4>B2B Contextual Campaign Setup</h4><div class="chat-demo"><div class="chat-msg chat-user">We're a management consultancy. We have 6 thought leadership articles on market volatility. Place them across premium financial publishers — but avoid content about casualties or natural disasters.</div><div class="chat-msg chat-ai"><strong>SmartMatch™:</strong> Content ingested. Semantic vectors generated for all 6 articles. Primary themes identified: market volatility, financial strategy, economic outlook, risk management. Scanning 200+ premium publishers now.</div><div class="chat-msg chat-ai"><strong>Brand Safety AI:</strong> Semantic exclusion categories applied — "natural disasters," "casualties," "humanitarian crises" blocked. Your content <strong>will</strong> appear alongside financial turbulence articles (e.g., market corrections, rate changes) but <strong>not</strong> alongside articles about hospitalisations or physical harm. <strong>No keyword lists needed.</strong></div><div class="chat-msg chat-user">We need German and French markets too.</div><div class="chat-msg chat-ai"><strong>Multilingual engine active.</strong> LLM-based matching now running across DE and FR publisher inventory. 3 languages live. Accuracy: EN high 90s%, DE/FR improving with targeted fine-tuning. Campaign ready in <strong>under 24 hours</strong>.</div></div><div class="tech-demo-label">A real workflow: advertiser uploads branded content, SmartMatch™ generates semantic vectors, matches against publisher articles, and applies AI brand safety — all without cookies or keyword lists.</div></div><h2>How It Actually Works: Making a Contextual Match</h2><p>SmartMatch™ doesn't use keyword lists or topic taxonomies. Instead, it generates semantic vectors from the full body text of both the advertiser's content and each publisher article, then measures the mathematical similarity between them. Here's a real-world example.</p><div class="tech-demo"><h4>Step 1 — Advertiser Content: Generate a Semantic Vector</h4><div class="emo-demo"><div class="emo-row"><div class="emo-label">Content</div><div class="emo-track"><div class="emo-fill b" style="width:95%;">"Navigating Market Volatility: Strategies for CFOs"</div></div></div><div class="emo-row"><div class="emo-label">Themes</div><div class="emo-track"><div class="emo-fill c" style="width:90%;">Financial strategy, risk management, C-suite</div></div></div><div class="emo-row"><div class="emo-label">Tone</div><div class="emo-track"><div class="emo-fill b" style="width:82%;">Authoritative, advisory, forward-looking</div></div></div><div class="emo-row"><div class="emo-label">Vector</div><div class="emo-track"><div class="emo-fill c" style="width:100%;">[0.82, 0.91, 0.04, 0.88, 0.67, 0.95, ...]</div></div></div></div><div class="tech-demo-label">SmartMatch™'s fine-tuned multilingual LLM reads the entire body of the advertiser's thought leadership piece — not a summary or keywords — and generates a high-dimensional semantic vector representing its meaning, themes, tone, and subject matter.</div></div><div class="tech-demo"><h4>Step 2 — Publisher Articles: Scan Thousands Per Second</h4><div class="intent-demo"><div class="intent-signal s1">FT: "Interest rate decision impacts pension funds"</div><div class="intent-signal s2">Reuters: "Hurricane devastates Gulf Coast"</div><div class="intent-signal s3">Bloomberg: "CFOs reassess hedging strategies"</div><div class="intent-signal s4">Guardian: "Hospital admissions surge during crisis"</div><div class="intent-signal s5">Economist: "Emerging market currency volatility"</div><div class="intent-score-box"><div class="sn">1000s</div><div class="sl">Per Second</div></div></div><div class="tech-demo-label">SmartMatch™ processes thousands of publisher articles per second across its curated network of 200+ premium publishers, generating semantic vectors for each. The LLM analyses the full article body — meaning a match can be driven by substantive themes even when the headline doesn't make the connection obvious.</div></div><div class="tech-demo"><h4>Step 3 — Semantic Matching + Brand Safety: The Decision</h4><div class="rel-demo"><div class="rel-pair"><div class="rel-box cr">CFO Strategy<br>Article</div><div class="rel-box pg">Bloomberg:<br>Hedging Strategies</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score hi">97%</div><div style="font-size:9px;color:rgba(255,255,255,0.4);">Semantic Match ✓ Safety ✓</div></div></div><div style="height:12px;"></div><div class="rel-demo"><div class="rel-pair"><div class="rel-box cr">CFO Strategy<br>Article</div><div class="rel-box pg">FT: Interest<br>Rate Impact</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score hi">89%</div><div style="font-size:9px;color:rgba(255,255,255,0.4);">Non-Obvious Match ✓</div></div></div><div style="height:12px;"></div><div class="rel-demo"><div class="rel-pair"><div class="rel-box cr">CFO Strategy<br>Article</div><div class="rel-box pg">Guardian:<br>Hospital Surge</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score lo">Blocked</div><div style="font-size:9px;color:rgba(255,255,255,0.25);">Brand Safety: Casualties ✕</div></div></div><div class="tech-demo-label">The vectors are compared mathematically. The Bloomberg article is a near-perfect match. The FT article about interest rates is a "non-obvious" match — the headline doesn't mention CFO strategy, but the full-body analysis reveals deep thematic alignment. The Guardian article about hospital admissions is blocked — not by keyword, but because the brand safety model's semantic category "casualties" encompasses the content. This is the key insight: keyword lists would either over-block (blocking "market crisis" articles the consultancy wants) or under-block (missing indirect references to harm). Semantic brand safety threads the needle.</div></div><h2>Core AI Capabilities</h2><ul><li><strong>Semantic Contextual Matching:</strong> Generates deep semantic vectors from the full body of both advertiser content and publisher articles, producing contextual matches at a depth simple keyword tools cannot replicate.</li><li><strong>AI Brand Safety:</strong> Dedicated deep-learning model trained on thousands of manually curated examples. Semantic category exclusions (e.g., "natural disasters" automatically covers hurricanes, tsunamis, eruptions).</li><li><strong>Multilingual Intelligence:</strong> 8 languages supported, 9th (Arabic) on roadmap. LLM architecture makes new language onboarding significantly more efficient — the constraint is now publisher inventory, not model training.</li><li><strong>Human-in-the-Loop:</strong> Models updated at least monthly. Account managers evaluate live matches and feed quality assessments back into the training pipeline.</li></ul><h2>Strategic Positioning</h2><blockquote>"Even I'm amazed at how fast things have progressed, but everyone you speak to has got examples of where it doesn't do what you're expecting. For the time being, at the very least you still need that human element." — Marcus, Head of Technology</blockquote><p>Smartology's AI has been foundational to the product since 2010 — not bolted on. As the company puts it: <strong>"We don't really have to prove we've got AI."</strong></p><div class="doc-meta">Profile Last Updated: February 2026 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+function quantcastReport(){return `<h1>Quantcast — Autonomous Advertising Platform</h1><p><strong>Company:</strong> Quantcast | <strong>Product:</strong> Quantcast Advertising Platform (Audience Graph + Q AI Suite) | <strong>Website:</strong> quantcast.com</p><p>Quantcast is an AI-powered demand-side platform built on nearly two decades of predictive AI and real-time audience intelligence. The Audience Graph — its proprietary AI engine — processes 40+ petabytes of data daily and makes over 10 billion predictions per second, powering what the company calls "autonomous advertising": campaigns that learn, predict, and optimise themselves at machine speed.</p><h2>Practical Demo: How an Advertiser Uses the Q AI Suite</h2><div class="tech-demo"><h4>Campaign Setup with Agent Q</h4><div class="chat-demo"><div class="chat-msg chat-user">I'm running a conversion campaign for a travel brand in UK and Germany. What audiences should I target?</div><div class="chat-msg chat-ai"><strong>Audience by Q:</strong> Based on your conversion pixel data and Audience Graph intelligence, I've built a bespoke predictive model. <strong>3 high-intent segments identified:</strong> Active Holiday Planners, Business Travel Bookers, and Weekend Break Seekers. These are live, real-time audiences — not static segments.</div><div class="chat-msg chat-user">The campaign's been live for 2 weeks. How's it doing?</div><div class="chat-msg chat-ai"><strong>Analysis by Q:</strong> Your ad set is outperforming industry benchmarks by <strong>34%</strong> on CPA. Top-performing sites: travel editorial and lifestyle content. Interesting insight — <strong>dental and medical content is converting strongly</strong>. Our Audience Graph traced this to a major dental convention in a target city driving business travel bookings.</div><div class="chat-msg chat-ai"><strong>Creative by Q:</strong> I've also noticed your 300x250 creative is underperforming vs. 728x90 by 22%. Recommendation: reallocate budget to top-performing formats. Shall I generate new creative variants?</div></div><div class="tech-demo-label">The Q AI Suite (Agent Q, Analysis by Q, Audience by Q, Creative by Q) acts as an always-on AI partner — surfacing insights, building audiences, and optimising campaigns autonomously.</div></div><h2>How It Actually Works: The Audience Graph Making a Bid Decision</h2><p>Every time an ad impression becomes available on the open web, the Audience Graph makes a prediction in under 10 milliseconds: should Quantcast bid, and how much? Here's what happens inside that split-second decision.</p><div class="tech-demo"><h4>Step 1 — Signal Ingestion: What Do We Know About This Moment?</h4><div class="intent-demo"><div class="intent-signal s1">Publisher: Travel editorial — Quantcast Measure active</div><div class="intent-signal s2">Content Intelligence: "best European city breaks 2026"</div><div class="intent-signal s3">Household Graph: Device cluster — business + personal</div><div class="intent-signal s4">Recent behaviour: car rental + hotel comparison sites</div><div class="intent-signal s5">Time signal: Tuesday 10:14am — work browsing pattern</div><div class="intent-score-box"><div class="sn">40PB</div><div class="sl">Daily Data</div></div></div><div class="tech-demo-label">Three components feed the prediction simultaneously: (1) <strong>Publisher signals</strong> from Quantcast Measure on 100M+ web destinations, (2) <strong>Content Intelligence</strong> — the NLP-powered topic map classifying billions of pages into thousands of categories, and (3) the <strong>Household Graph</strong> — probabilistic cross-device modelling that connects billions of devices by geography and browsing pattern, without personal identifiers.</div></div><div class="tech-demo"><h4>Step 2 — Predictive AI: Three Autonomous Agents Collaborate</h4><div class="arch-diagram"><div class="arch-node blue"><div class="ai">&#x1F3AF;</div>Audience<br>Agent</div><div class="arch-arrow">→</div><div class="arch-node outline"><div class="ai">&#x1F50D;</div>Supply<br>Agent</div><div class="arch-arrow">→</div><div class="arch-node blue"><div class="ai">&#x2699;</div>Optimisation<br>Agent</div></div><div class="tech-demo-label"><strong>Audience Agent</strong> asks: Does this impression match the predictive model built from the advertiser's conversion data? (Answer: 87% match — device cluster shows travel research pattern). <strong>Supply Agent</strong> asks: Is this inventory brand-safe, fraud-free, and viewable? (Answer: premium publisher, verified, viewability 82%). <strong>Optimisation Agent</strong> asks: What bid maximises ROI given budget, pacing, and channel mix? (Answer: bid $2.40 — 15% below ceiling, early in flight). All three agents operate simultaneously — 10 billion such decisions per second.</div></div><div class="tech-demo"><h4>Step 3 — The Counter-Intuitive Discovery</h4><div class="rel-demo"><div class="rel-pair"><div class="rel-box cr">Campaign<br>Brief: Travel</div><div class="rel-box pg">Dental<br>Convention Content</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score hi">Converting</div><div style="font-size:9px;color:rgba(255,255,255,0.4);">Unexpected — But Real ✓</div></div><div style="width:30px"></div><div class="rel-pair"><div class="rel-box cr">Campaign<br>Brief: Travel</div><div class="rel-box pg">Fitness<br>Influencer Content</div></div><div class="rel-conn">&#x27F7;</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score lo">Not Converting</div><div style="font-size:9px;color:rgba(255,255,255,0.25);">Expected — But Wrong ✕</div></div></div><div class="tech-demo-label">This is where Quantcast's predictive AI differs fundamentally from audience-targeting or contextual tools. The Audience Graph discovered that dental/medical content was converting because a major dental convention in Las Vegas was driving business flight bookings — a connection no human planner would brief for. As Alberto Ciot described: "Wait — we never wanted to target this audience. But how's the return on investment? Through the roof." The AI follows the data, not the brief's assumptions. Similarly, the Kim Kardashian/Lewis Hamilton audience overlap was spotted days before the news broke — "completely unbiased, seeing the trend before the trend."</div></div><h2>Key Results</h2><ul><li><strong>44% average increase in conversions</strong> vs. legacy DSPs.</li><li><strong>50% less campaign management time</strong> — teams spend twice as long on manual optimisation with traditional DSPs.</li><li><strong>61% open internet reach</strong>, beyond walled gardens.</li><li><strong>Client example — Vodafone:</strong> +25% sales conversions, 40% cookieless.</li></ul><h2>Strategic Positioning</h2><blockquote>"We are built as a company to understand how consumers use devices and go about their journeys online. We're not built to buy media — that's a secondary thing we do because we're good at understanding consumers." — Alberto Ciot, Quantcast</blockquote><p>Quantcast's approach is engineeristic and evidence-based — 19 years of predictive AI evolution, not a bolted-on LLM. The platform combines <strong>predictive AI</strong> (the mathematical, precise engine) with <strong>LLMs</strong> (for content intelligence and natural language interfaces) into a unified autonomous system.</p><div class="doc-meta">Profile Last Updated: February 2026 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+function microsoftReport(){return `<h1>Microsoft Advertising — AI & Agentic Commerce</h1><p><strong>Company:</strong> Microsoft | <strong>Product:</strong> Microsoft Advertising Platform (Copilot, Ads Studio, Brand Agents, Copilot Checkout) | <strong>Website:</strong> ads.microsoft.com</p><p>Microsoft Advertising is leveraging the full breadth of its AI infrastructure — from large language models to agentic commerce — to reshape how advertising is created, managed, optimised, and transacted. Built on top of a consumer AI ecosystem surpassing 100 million monthly active Copilot users, the platform spans generative creative tools, conversational campaign management, and a new agentic commerce layer where consumers can discover, evaluate, and purchase products entirely within AI-driven interfaces.</p><h2>Practical Demo: Copilot in the Advertising Platform</h2><div class="tech-demo"><h4>Conversational Campaign Management</h4><div class="chat-demo"><div class="chat-msg chat-user">What is the best click share I should be aiming for to achieve the best CPA?</div><div class="chat-msg chat-ai"><strong>Copilot:</strong> Analysing your account data. Across your top 15 campaigns, click shares between <strong>45-60%</strong> correlate with your lowest CPAs. Campaigns above 70% click share show diminishing returns — CPA increases by 18% on average. Recommendation: optimise bids to maintain 50-55% click share.</div><div class="chat-msg chat-user">Run a Q3 over Q4 analysis for my brand campaigns.</div><div class="chat-msg chat-ai"><strong>Performance Comparison:</strong> Q4 outperformed Q3 across all metrics: CTR +23%, conversions +41%, CPA -15%. Top driver: your holiday creative variants generated <strong>3.2x higher engagement</strong>. Lowest performer: Campaign "Brand_Generic_UK" — recommend pausing or refreshing creative. Full report generated in <strong>1.2 minutes</strong> (vs. ~30 min manual).</div><div class="chat-msg chat-ai"><strong>Ads Studio:</strong> I can generate refreshed creative variants for the underperforming campaign using your brand kit. Want me to produce 6 banner options with AI-generated backgrounds matching holiday themes?</div></div><div class="tech-demo-label">Copilot acts as an always-on analyst and creative partner — diagnosing performance, generating reports, and producing creative assets through natural language. Agency partner Carat reports 6x faster creative workflows.</div></div><h2>How It Actually Works: Ads Studio Creative Generation</h2><p>Ads Studio isn't a generic image generator — it's a creative production suite built specifically for advertising, grounded in brand guidelines and performance data. Here's how a real asset gets created.</p><div class="tech-demo"><h4>Step 1 — Brand Kit Ingestion: Grounding AI in Your Brand</h4><div class="emo-demo"><div class="emo-row"><div class="emo-label">Logo</div><div class="emo-track"><div class="emo-fill b" style="width:100%;">Uploaded — all variants (light/dark/icon)</div></div></div><div class="emo-row"><div class="emo-label">Colours</div><div class="emo-track"><div class="emo-fill c" style="width:100%;">#1B365D primary, #F5A623 accent, #FFFFFF</div></div></div><div class="emo-row"><div class="emo-label">Fonts</div><div class="emo-track"><div class="emo-fill b" style="width:100%;">Brand typeface + fallbacks registered</div></div></div><div class="emo-row"><div class="emo-label">Tone</div><div class="emo-track"><div class="emo-fill c" style="width:85%;">Scraped from landing pages — "professional, warm"</div></div></div></div><div class="tech-demo-label">Ads Studio begins by ingesting the advertiser's brand kit — logos, colour palettes, fonts, and regulatory constraints. It also scrapes existing landing pages and website assets to learn the brand's visual language and tone. Every generated asset is grounded in these constraints, ensuring brand consistency across all outputs.</div></div><div class="tech-demo"><h4>Step 2 — AI Background Generation: Product in Context</h4><div class="arch-diagram"><div class="arch-node blue"><div class="ai">&#x1F4F7;</div>Product<br>Image</div><div class="arch-arrow">→</div><div class="arch-node outline"><div class="ai">AI</div>Remove<br>Background</div><div class="arch-arrow">→</div><div class="arch-node blue"><div class="ai">&#x1F3A8;</div>Generate<br>Scene</div><div class="arch-arrow">→</div><div class="arch-node outline"><div class="ai">&#x2705;</div>Brand Kit<br>Validated</div></div><div class="tech-demo-label">The advertiser uploads a product photo (e.g., a defibrillator for St John Ambulance). Ads Studio removes the background, then generates contextually relevant scenes — an office, a construction site, a gym — placing the product naturally without requiring expensive photography. Each generated scene is validated against the brand kit for colour consistency and visual alignment. St John Ambulance used this exact process to create professional product imagery at a fraction of traditional production costs.</div></div><div class="tech-demo"><h4>Step 3 — Scale: From 1 Asset to 100,000</h4><div class="lat-demo"><div class="lat-item"><div class="lat-circle old"><div class="ln">1</div><div class="lu">URL</div></div><div class="lat-label">Landing Page Input</div></div><div class="lat-item"><div class="lat-circle new"><div class="ln">AI</div><div class="lu">gen</div></div><div class="lat-label">Headlines + Descriptions</div></div><div class="lat-item"><div class="lat-circle new" style="background:var(--cyan);"><div class="ln" style="color:var(--deep-blue);">100K+</div><div class="lu" style="color:rgba(5,20,97,0.6);">ads</div></div><div class="lat-label">Customised Variants</div></div><div class="lat-item"><div class="lat-circle new"><div class="ln">+10%</div><div class="lu">CTR</div></div><div class="lat-label">vs. Manual Creation</div></div></div><div class="tech-demo-label">This is the Priceline use case: their proprietary platform sends landing page URLs to Ads Studio via API. The system ingests each page, extracts product details and short text prompts, then generates multiple ad headlines, descriptions, and image variants per URL — enabling 100,000+ customised ads in minutes. This unlocked marketing for 200,000+ boutique hotels that previously lacked professional ad assets, with a 10% immediate CTR boost over manually created ads. The API integration means any advertiser can build Ads Studio directly into their own platform.</div></div><h2>How It Actually Works: Copilot Checkout & Brand Agents</h2><p>The agentic commerce layer removes the traditional redirect from AI conversation to external website, keeping the entire journey — discovery, comparison, and purchase — inside the Copilot interface.</p><div class="tech-demo"><h4>The Complete Purchase Flow — No Website Redirect</h4><div class="funnel-demo"><div class="funnel-stage"><div class="funnel-box raw">&#x1F4AC;</div><div class="funnel-label">"I need a gift<br>for a runner"</div></div><div class="funnel-arr">→</div><div class="funnel-stage"><div class="funnel-box mid">&#x1F916;</div><div class="funnel-label">Brand Agent<br>recommends</div></div><div class="funnel-arr">→</div><div class="funnel-stage"><div class="funnel-box mid">&#x1F4CB;</div><div class="funnel-label">Compare<br>3 options</div></div><div class="funnel-arr">→</div><div class="funnel-stage"><div class="funnel-box done">$</div><div class="funnel-label">Checkout<br>in Copilot</div></div></div><div class="tech-demo-label"><strong>Consumer asks Copilot</strong> for a gift recommendation → <strong>Brand Agent</strong> (trained on the merchant's full product catalog, speaking in brand voice) surfaces 3 options with comparison → consumer selects → <strong>Copilot Checkout</strong> processes payment via PayPal/Stripe/Shopify without leaving the conversation. The merchant remains the merchant of record and retains all customer data. Shopify merchants are automatically enrolled. Brand Agents deploy in hours, not weeks, and report results via Microsoft Clarity dashboards. Alexander Del Rossa reports <strong>3x higher conversion rates</strong> in Brand Agent-assisted sessions vs. unassisted.</div></div><h2>Core AI Capabilities</h2><ul><li><strong>Copilot in Advertising Platform:</strong> Natural-language campaign management — diagnostics, troubleshooting, eoptimisation recommendations, creative generation, and performance comparison (YoY, QoQ, MoM, WoW).</li><li><strong>Ads Studio:</strong> Generative AI creative suite — AI-powered background generation, image-to-video animation, brand kit integration, and API access for custom platforms.</li><li><strong>Brand Agents:</strong> AI shopping assistants deployed on merchant websites via Shopify in hours. Trained on product catalogs, speaking in the brand's voice, handling discovery to purchase.</li><li><strong>Copilot Checkout:</strong> In-conversation purchasing with no redirect. Merchant retains transaction ownership, customer data, and relationship.</li></ul><h2>Strategic Positioning</h2><blockquote>"Think of it as your buddy in the system that you can just chat to very quickly and get those answers. A lot of the technology we're building is to enable you to create, to enable you to get things done quicker. Maybe you don't have creative people, maybe you're in a highly regulated industry, maybe you're a small business." — Tracy, Microsoft Advertising</blockquote><p>Microsoft positions AI as the <strong>"equaliser"</strong> — democratising advertising capability for resource-constrained organisations. The strategic question being actively explored: the transition from hybrid search/AI to fully agentic commerce where agent-to-agent transactions replace human-to-website browsing.</p><div class="doc-meta">Profile Last Updated: February 2026 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+function onetagReport(){return `<h1>OneTag — Smart Curation Platform</h1><p><strong>Company:</strong> OneTag | <strong>Product:</strong> Smart Curation Platform (OpenVerified + DealCurate) | <strong>Website:</strong> onetag.com</p><p>OneTag drives ~30% higher CTR and viewability vs. non-curated inventory. Semantic data more than doubles CTR for many campaigns.</p><h2>Practical Demo: Creating a Curated Deal</h2><div class="tech-demo"><h4>Buyer Uses DealCurate to Build a Deal ID</h4><div class="chat-demo"><div class="chat-msg chat-user">I need a deal for UK automotive content, viewability &gt;70%, no MFA, attention-optimised.</div><div class="chat-msg chat-ai"><strong>DealCurate:</strong> Deal configured. Semantic targeting: "automotive" + related topics (electric vehicles, road tests, car technology). MFA filter: active. Attention levers: viewability &gt;70%, time-in-view &gt;5s, ads-to-content ratio &lt;30%.</div><div class="chat-msg chat-ai"><strong>Related Topics Found:</strong> Our semantic engine discovered 14 additional relevant contexts you didn't specify: EV charging, car insurance, road trips, motorsport, driving tests... These <strong>double CTR</strong> vs keyword-only matching.</div><div class="chat-msg chat-ai"><strong>Deal ID: OT-UK-AUTO-2026-001</strong> ready. Push to your DSP. Estimated daily scale: 8.2M impressions. Pre-filtered from 170B daily auctions.</div></div><div class="tech-demo-label">Buyers configure deals with natural language. OneTag's semantic engine finds related contexts that keyword matching misses.</div></div><h2>Behind the Scenes: Smart Curation Pipeline</h2><div class="tech-demo"><h4>How 170B Auctions Become Curated Deals</h4><div class="funnel-demo"><div class="funnel-stage"><div class="funnel-box raw">170B</div><div class="funnel-label">Raw Auctions</div></div><div class="funnel-arr">→</div><div class="funnel-stage"><div class="funnel-box raw" style="background:rgba(255,0,255,0.15);color:var(--magenta);">MFA ✕</div><div class="funnel-label">MFA Removed</div></div><div class="funnel-arr">→</div><div class="funnel-stage"><div class="funnel-box mid">A2CR</div><div class="funnel-label">Attention Filter</div></div><div class="funnel-arr">→</div><div class="funnel-stage"><div class="funnel-box mid">NLP</div><div class="funnel-label">Semantic Match</div></div><div class="funnel-arr">→</div><div class="funnel-stage"><div class="funnel-box done">✓</div><div class="funnel-label">Deal ID</div></div></div><div class="tech-demo-label">Supply-side decisioning: AI analyses placement metadata (time-in-view, A2CR, refresh rate) BEFORE the bid request, removing waste at source. DSPs receive only pre-optimised inventory.</div></div><h2>Strategic Positioning</h2><blockquote>"The supply platform that thinks like a buyer. Smart Curation drives ~30% higher CTR and viewability — removing waste so the ecosystem sees better quality and less carbon."</blockquote><div class="doc-meta">Profile Last Updated: February 2026 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+function pubmaticReport(){return `<h1>PubMatic — AgenticOS</h1><p><strong>Company:</strong> PubMatic (Nasdaq: PUBM) | <strong>Product:</strong> AgenticOS / PubMatic Assistant | <strong>Website:</strong> pubmatic.com</p><p>At CES 2026, PubMatic launched AgenticOS — the first OS for agent-to-agent advertising. NVIDIA partnership delivers 5x faster AI decisioning.</p><h2>Practical Demo: Creating a Deal with PubMatic Assistant</h2><div class="tech-demo"><h4>Natural Language Deal Management</h4><div class="chat-demo"><div class="chat-msg chat-user">Create a PG deal for Australian audiences, 300x250 video, entertainment publishers.</div><div class="chat-msg chat-ai"><strong>PubMatic Assistant:</strong> PG deal created. Format: 300x250 video. Geo: Australia. Vertical: Entertainment. Publishers matched: 47 premium sites. <strong>Deal ID generated in 4.2 seconds</strong> (87% faster than manual).</div><div class="chat-msg chat-user">This deal isn't transacting. What's wrong?</div><div class="chat-msg chat-ai"><strong>Deal Troubleshooting Agent:</strong> Analysed bid requests and responses. Issue found: <strong>Floor price ($8.50 CPM) exceeds current market clearing price ($6.20)</strong>. Recommendation: lower floor to $6.50. Also: 3 creatives are blocked by publisher ad quality settings. Shall I adjust?</div><div class="chat-msg chat-user">Yes, fix both.</div></div><div class="tech-demo-label">PubMatic Assistant uses generative AI to create deals in seconds and troubleshoot issues via natural language — reducing resolution time by 70%.</div></div><h2>Behind the Scenes: NVIDIA-Powered Infrastructure</h2><div class="tech-demo"><h4>Performance: Industry Standard vs. PubMatic + NVIDIA</h4><div class="lat-demo"><div class="lat-item"><div class="lat-circle old"><div class="ln">5-10</div><div class="lu">ms</div></div><div class="lat-label">Industry Standard</div></div><div class="lat-item"><div class="lat-circle new"><div class="ln">~1</div><div class="lu">ms</div></div><div class="lat-label">PubMatic + NVIDIA</div></div><div class="lat-item"><div class="lat-circle new" style="background:var(--cyan);"><div class="ln" style="color:var(--deep-blue);">85%</div><div class="lu" style="color:rgba(5,20,97,0.6);">fewer</div></div><div class="lat-label">Timeouts Eliminated</div></div><div class="lat-item"><div class="lat-circle new"><div class="ln">5x</div><div class="lu">faster</div></div><div class="lat-label">AI Decisioning</div></div></div><div class="tech-demo-label">NVIDIA L40S GPUs + Triton Inference Servers cut latency to ~1ms. RAPIDS for Spark delivers 60% faster analytics. Unlocks millions in previously lost ad spend.</div></div><h2>Strategic Positioning</h2><blockquote>"When independent publishers are empowered to compete on equal technological footing, the open internet remains open." — Mukul Kumar, Co-Founder</blockquote><div class="doc-meta">Profile Last Updated: February 2026 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+function azerionReport(){return `<h1>Azerion — Intelligence AI Platform</h1><p><strong>Company:</strong> Azerion (Euronext: AZRN) | <strong>Product:</strong> Azerion Intelligence / AI Marketplace | <strong>Website:</strong> azerion.com</p><p>"AI for Everyone" — pay-per-use enterprise-grade AI compute for advertisers, agencies, and publishers.</p><h2>Practical Demo: Using the AI Marketplace</h2><div class="tech-demo"><h4>Agency Creates Campaign Assets via Marketplace</h4><div class="chat-demo"><div class="chat-msg chat-user">I need 12 ad variations for a summer travel campaign — video, display, and audio. Different languages: EN, DE, FR.</div><div class="chat-msg chat-ai"><strong>Azerion Marketplace:</strong> Deploying 3 apps: 1) Video Production agent — generating 4 x 15s travel videos from your brand assets 2) Image Creation agent — 4 x display banners (300x250, 728x90) 3) Audio Synthesis — 4 x 30s audio spots</div><div class="chat-msg chat-ai"><strong>Multi-language:</strong> All 12 assets auto-localised to EN, DE, FR using LLM translation. <strong>36 total assets ready in 8 minutes.</strong> Smart Bidding agent attached — will optimise yield per language/format in real-time.</div><div class="chat-msg chat-ai"><strong>Cost:</strong> Pay-per-use. Total compute: €4.20. No infrastructure setup required.</div></div><div class="tech-demo-label">The Marketplace hosts ready-to-deploy AI apps for creative, bidding, and targeting. Third-party developers can contribute. Serverless, auto-scaling.</div></div><h2>Behind the Scenes: Multi-Cloud Architecture</h2><div class="tech-demo"><h4>Azerion Intelligence Platform Stack</h4><div class="mkt-demo"><div class="mkt-tile b">Text Gen (LLM)</div><div class="mkt-tile c">Image Creation</div><div class="mkt-tile b">Video Production</div><div class="mkt-tile c">Smart Bidding</div><div class="mkt-tile b">Contextual AI</div><div class="mkt-tile c">Audio Synthesis</div></div><div class="tech-demo-label">Open, independent multi-cloud platform. Negotiated rates with major cloud providers. Apps deploy to serverless endpoints with auto-scaling. Accessible to businesses of all sizes.</div></div><h2>Strategic Positioning</h2><blockquote>"AI for Everyone — making enterprise-grade AI accessible to agencies, publishers, and brands of all sizes with pay-per-use pricing."</blockquote><div class="doc-meta">Profile Last Updated: February 2026 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+function capeReport(){return `<h1>Cape.io — Intelligent Campaign Automation</h1><p><strong>Company:</strong> Cape.io (formerly Peach) | <strong>Product:</strong> Intelligent Campaign Automation Platform (Creative Automation, Validation, Advanced TV) | <strong>Website:</strong> cape.io</p><p>Cape.io (rebranded from Peach in September 2025) is the first platform built specifically for Intelligent Campaign Automation — unifying creative production, regulatory compliance, technical QA, and cross-channel distribution into a single connected workflow. Where most AI investment in advertising has concentrated on the media side, Cape.io occupies a distinctive position focused on the creative execution layer: ensuring ads are technically correct, legally compliant, and performance-optimised before they ever reach a DSP, ad server, or publisher.</p><h2>Practical Demo: How a Campaign Flows Through Cape.io</h2><div class="tech-demo"><h4>End-to-End Workflow: From Upload to Live Campaign</h4><div class="chat-demo"><div class="chat-msg chat-user">I've uploaded 12 video assets for a UK alcohol brand campaign — linear TV, CTV (Netflix, Disney+), YouTube, and Instagram.</div><div class="chat-msg chat-ai"><strong>Cape.io Auto-Detect:</strong> Assets received. Auto-detected: Brand — [Alcohol Brand]. Asset types — 8x video (15s/30s), 4x display. Intended destinations detected from media plan: ITV (linear), Netflix (CTV), Disney+ (CTV), YouTube, Instagram. Matching against spec database now.</div><div class="chat-msg chat-ai"><strong>Technical QA:</strong> 10 of 12 assets pass. <strong>2 failures flagged:</strong> Asset 7 — bit rate exceeds Netflix max (12Mbps vs 10Mbps limit). Asset 11 — Instagram safe zone violation (logo clipped in 4:5 crop). Remediation suggestions attached.</div><div class="chat-msg chat-user">Run compliance check for UK market — all destinations.</div><div class="chat-msg chat-ai"><strong>Compliance Check (UK — BCAP + CAP + Platform Rules):</strong> Scanned 32 rule types across all assets. <strong>3 issues found:</strong> Asset 2 — missing responsible drinking message (BCAP Rule 19.7). Asset 5 — legal super display duration below minimum (1.2s vs 2s required). Asset 9 — Clearcast-approved but <strong>fails Netflix alcohol guidelines</strong> (different watershed rules for streaming). Risk assessment and regulation links attached for each.</div><div class="chat-msg chat-ai"><strong>Key insight:</strong> Clearcast approval does NOT mean CTV compliance. Netflix, Disney+, and each streamer have independent rules. Cape.io checks all layers simultaneously.</div></div><div class="tech-demo-label">A real workflow: assets are uploaded, auto-detected, checked against global spec databases for technical QA, then scanned for regulatory compliance across multiple markets and platforms — all before the campaign touches a DSP.</div></div><h2>How It Actually Works: AI-Powered Compliance Check</h2><p>Cape.io's compliance engine is not a generic LLM reading regulations. It's a purpose-built AI trained by global compliance experts — specialists who have worked with Clearcast, Ofcom (UK), ARPP (France), Clear Ads (Australia), and other regulators — with over 30 years of combined ad compliance experience feeding a continuous human-in-the-loop training pipeline.</p><div class="tech-demo"><h4>Step 1 — Asset Ingestion: What Is This Ad?</h4><div class="emo-demo"><div class="emo-row"><div class="emo-label">Format</div><div class="emo-track"><div class="emo-fill b" style="width:100%;">30s video — H.264, 1920x1080, 8Mbps</div></div></div><div class="emo-row"><div class="emo-label">Brand</div><div class="emo-track"><div class="emo-fill c" style="width:92%;">Auto-detected: Premium Gin Brand</div></div></div><div class="emo-row"><div class="emo-label">Category</div><div class="emo-track"><div class="emo-fill b" style="width:95%;">Alcohol — triggers extended rule set</div></div></div><div class="emo-row"><div class="emo-label">Destinations</div><div class="emo-track"><div class="emo-fill c" style="width:88%;">ITV, Netflix, YouTube, Instagram</div></div></div></div><div class="tech-demo-label">Cape.io auto-detects the asset type, brand, product category, and intended destinations. The category detection is critical — an alcohol ad triggers a completely different compliance rule set than a food or automotive ad. No manual data entry required.</div></div><div class="tech-demo"><h4>Step 2 — Multi-Layer Compliance Scan: 32+ Rule Types Simultaneously</h4><div class="arch-diagram"><div class="arch-node blue"><div class="ai">&#x1F3AC;</div>Video<br>Analysis</div><div class="arch-arrow">→</div><div class="arch-node outline"><div class="ai">&#x1F4DC;</div>Regulation<br>Matching</div><div class="arch-arrow">→</div><div class="arch-node blue"><div class="ai">&#x2696;</div>Market +<br>Platform Rules</div><div class="arch-arrow">→</div><div class="arch-node outline"><div class="ai">&#x26A0;</div>Flag &<br>Explain</div><div class="arch-arrow">→</div><div class="arch-node blue"><div class="ai">&#x1F517;</div>Link to<br>Regulation</div></div><div class="tech-demo-label">The AI analyses the creative content (visuals, audio, text overlays, legal supers, disclaimers) against 32+ rule types: adult content, alcohol restrictions, food/beverage guidelines, financial promotions, legal super duration/legibility, responsible messaging requirements, and more. Crucially, it checks against <strong>multiple regulatory layers simultaneously</strong> — UK BCAP rules for linear TV, PLUS each individual streamer's guidelines for CTV, PLUS platform-specific rules for social. An ad cleared by Clearcast may still fail on Netflix or Disney+.</div></div><div class="tech-demo"><h4>Step 3 — Expert-Trained AI: The Human Feedback Loop</h4><div class="rel-demo"><div class="rel-pair"><div class="rel-box cr">Generic LLM<br>"Probably compliant"</div><div class="rel-box pg">Accuracy:<br>Variable</div></div><div class="rel-conn">vs.</div><div class="rel-pair"><div class="rel-box cr" style="background:var(--green);color:var(--deep-blue);">Cape.io AI<br>Expert-Trained</div><div class="rel-box pg" style="border-color:var(--green);">Regulatory<br>Body Expertise</div></div><div class="rel-conn">→</div><div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="rel-score hi">Moat</div><div style="font-size:9px;color:rgba(255,255,255,0.4);">Human + AI ✓</div></div></div><div class="tech-demo-label">Cape.io's compliance models are trained and continuously refined by in-house experts with direct experience at Clearcast, Ofcom, ARPP, and Clear Ads — not trained on the generic internet. As Joe Hollywood (Head of Product) explained: "Without that, you're dependent on whatever you get out of a large language model, which isn't always particularly accurate. Our competitive advantage, our moat, is we're leveraging that expertise." Every flagged issue includes a clear explanation and a direct link to the relevant regulation.</div></div><h2>How It Actually Works: Creative Performance Analysis</h2><p>Beyond compliance, Cape.io analyses creative assets to predict and improve performance — turning creative review from a subjective, post-hoc process into a data-driven, pre-flight one.</p><div class="tech-demo"><h4>Pre-Launch Creative Optimisation</h4><div class="emo-demo"><div class="emo-row"><div class="emo-label">CTA Strength</div><div class="emo-track"><div class="emo-fill c" style="width:62%;">62% — Recommend: larger, higher contrast</div></div></div><div class="emo-row"><div class="emo-label">Logo Visibility</div><div class="emo-track"><div class="emo-fill b" style="width:45%;">45% — Below benchmark. Move to upper-third</div></div></div><div class="emo-row"><div class="emo-label">Attention Score</div><div class="emo-track"><div class="emo-fill c" style="width:78%;">78% — Strong opening 3 seconds</div></div></div><div class="emo-row"><div class="emo-label">Brand Recall</div><div class="emo-track"><div class="emo-fill b" style="width:71%;">71% — Above category average</div></div></div></div><div class="tech-demo-label">The system analyses creative assets against performance benchmarks and synthetic audience data to provide pre-launch recommendations: CTA placement, logo visibility, predicted attention patterns, and brand recall likelihood. Joe was candid about the broader market: "Even solutions which pride themselves on creative analysis — if you go under the hood, the performance data is still manually collected. Literally chasing people for spreadsheets. There's a degree of smoke and mirrors." Cape.io's positioning is to genuinely automate this data flow.</div></div><h2>Case Study: KLM AirMail</h2><p>Cape.io partnered with KLM Royal Dutch Airlines to develop AirMail — an AI-powered email generation co-pilot. Marketers select campaign parameters (destinations, geographic focus, themes like city breaks or culinary tours), and AirMail automatically generates all email copy, titles, snippets, and subject lines while integrating relevant images from KLM's library. Deployed at full scale across multiple markets after successful proof-of-concept testing.</p><h2>Core Capabilities</h2><ul><li><strong>Technical QA:</strong> 5x faster creative QA. Proprietary global spec database for every publisher and broadcaster. Auto-detects asset type, brand, and destination. Covers linear TV, CTV, social, display, video, DOOH, email, print.</li><li><strong>AI Compliance Check:</strong> 32+ rule types. 6 markets (UK, USA, France, Australia, Germany, Italy). Expert-trained models with direct regulatory body experience. Platform-specific rules including Netflix and other streamers.</li><li><strong>Creative Analysis:</strong> Pre-launch optimisation using synthetic audiences and performance data. CTA, logo, imagery, and attention recommendations.</li><li><strong>Sidekick AI Agent:</strong> Builds optimised media plans from campaign objectives. Replaces manual spreadsheet-driven planning.</li><li><strong>AI Studio:</strong> Generate images, videos, product backgrounds, and multi-language voice-overs from text prompts.</li><li><strong>API-First:</strong> Pushes creatives to DSP libraries, creates line items and campaigns, and assigns creative to line items programmatically.</li></ul><h2>Strategic Positioning</h2><blockquote>"There's been a lot of investment on the media side — measurement, data, optimising target audiences. But actually utilising the creative to optimise performance is underused, especially for TV. If we can evidence that this ad was compliant plus it drove X uplift, that makes a much more streamlined process." — Joe Hollywood, Head of Product</blockquote><p>Cape.io's core thesis: the industry has systematically over-invested in the media side while under-investing in the creative execution layer. The platform exists to close that gap — with expert-trained AI, not generic LLMs.</p><div class="doc-meta">Profile Last Updated: February 2026 | Part of IAB UK's AI in Ad Tech Hub</div>`;}
+
+/* ===== DATA ===== */
+const data = {
+    name:"AI in Ad Tech", id:"root", color:"#0078f0",
+    children:[
+        { name:"Contextual AI", id:"contextual", color:"#0078f0", isCategory:true, children:[
+            { name:"Nano Interactive", id:"nano", color:"#0078f0", hasReport:true, reportContent:nanoReport(), children:[
+                {name:"Core Technology",summary:"LIIFT™, Contexta Engine, Intent Graph — 4.9B+ daily signals.",color:"#0078f0",children:[{name:"LIIFT™ Platform",description:"Assesses every impression in real-time using live intent signals from search engines, next-gen contextual understanding, and historical placement performance — all without personal identifiers."},{name:"Contexta Engine",description:"Vectorisation and semantic analysis to decipher deeper meaning, sentiment, and context beyond keywords. Supports 100+ languages."},{name:"Intent Graph",description:"Processes 4.9 billion daily intent signals. Understands which search terms drove users to content, targeting them at the moment of intent."}]},
+                {name:"Key Features",summary:"CIS scoring, 60+ Personas, 100% open web.",color:"#0078f0",children:[{name:"Consumer Intent Score",description:"15-point algorithm: NLP + entity analysis + sentiment (+1 to -1) + ML performance prediction. Scores every impression individually."},{name:"Intent Personas",description:"60+ demographic personas (occupations, interests, generations) created via ML and verified by panel data — all without cookies, IDs, or profiling."},{name:"Zero PII",description:"No cookies, UIDs, emails, or device IDs. Reaches 100% of the open web with no browser bias, immune to all signal deprecation."}]},
+                {name:"Stand-Out Quotes",summary:"Future-proof and privacy-first.",type:"quote",color:"#0078f0",children:[{name:"Future-Proof",description:"\"LIIFT™ extends reach to 100% of the open web — no cookies, no UIDs, no email addresses.\"",type:"quote"},{name:"Signal Loss",description:"\"We solve signal loss by understanding consumer intent in real-time without any personal identifiers.\"",type:"quote"}]}
+            ]},
+            { name:"RAAS LAB", id:"raas", color:"#0078f0", hasReport:true, reportContent:raasReport(), children:[
+                {name:"Agentic Platform",summary:"0-100 relevance scoring per impression. Semantic AI.",color:"#0078f0",children:[{name:"Semantic Understanding",description:"Comprehends the meaning of both creative and webpage content, building dynamic 'content webs' that discover relevant placements human planners would miss."},{name:"Relevance Score",description:"Every impression scored 0-100. Campaigns scoring 70%+ see +21% brand lift, 35% more attention, 30% lower CPA."},{name:"Impression Decisioning",description:"Selects BOTH creative and placement in unison for hyper-personalised messaging at the individual impression level."}]},
+                {name:"Tech Infrastructure",summary:"Proprietary ad server, RMP, exchange-level integration.",color:"#0078f0",children:[{name:"Proprietary Ad Server",description:"Classifies URLs within 1 hour vs. 48-hour industry standard. Built from scratch for agentic capabilities."},{name:"Relevant Marketplace",description:"Launched March 2025. Programmatic impression-level advertising with 100% transparency on where and why every ad is served."},{name:"The Snippet",description:"Integrates directly into existing DSP or media partner tech stacks. Exchange-level integration for massive scale."}]},
+                {name:"Philosophy & Quotes",summary:"Back to basic principles.",type:"quote",color:"#0078f0",children:[{name:"Basic Principles",description:"\"It needs to go back to these basic principles of advertising, which is use relevance and that will unlock the outcomes in premium media.\"",type:"quote"},{name:"Speed",description:"\"In just one second, RAAS LAB achieves what takes other tools 9.5 years of manual effort.\"",type:"quote"}]}
+            ]},
+            { name:"Scope3", id:"scope3", color:"#0078f0", hasReport:true, reportContent:scope3Report(), children:[
+                {name:"Core Technology",summary:"The Agentic Trinity: LLM + Reasoning + Tool Access.",color:"#0078f0",children:[{name:"LLM Foundation",description:"Large Language Models as the cognitive engine for understanding context, intent, and complex campaign objectives via natural language."},{name:"Reasoning Loops",description:"Active reasoning: evaluates media quality, brand alignment, sustainability, and performance goals before acting."},{name:"Tool Access & MCP",description:"Executes via APIs across DSPs, SSPs, publishers. Model Control Protocol (MCP) ensures interoperability across diverse systems."}]},
+                {name:"Key Features",summary:"Brand Agents, signal loss solution, MFA blocking.",color:"#0078f0",children:[{name:"Brand Agents",description:"Custom AI agents configured via natural language. Deployed across SSPs (Equativ, Index Exchange, OpenX) as unified execution strategies."},{name:"Signal Loss Solution",description:"Agents at the point of transaction use near-perfect publisher data, solving for distortion across supply chain hops."},{name:"Human-in-the-Loop",description:"Human oversight for training and strategic direction. Autonomous real-time execution at scale within defined guardrails."}]},
+                {name:"Stand-Out Quotes",summary:"Redefining advertising for AI-first.",type:"quote",color:"#0078f0",children:[{name:"The Foundation",description:"\"Agentic AI combines three elements: LLM for cognition, reasoning loops for strategy, and tool access for execution.\"",type:"quote"},{name:"New Era",description:"\"Agentic advertising transforms relationships from impression-based auctions to outcome-focused partnerships.\"",type:"quote"}]}
+            ]},
+            { name:"Seedtag", id:"seedtag", color:"#0078f0", hasReport:true, reportContent:seedtagReport(), children:[
+                {name:"Core Technology",summary:"Liz AI: 60M+ articles/day, 40+ models, sub-second latency.",color:"#0078f0",children:[{name:"Transformer Embeddings",description:"Analyses text, video, and emotions in real-time using transformer models. Processes 800+ URLs/sec with 2B+ HTTP requests/day."},{name:"Neuro-Contextual",description:"AI + neuroscience principles. 350% higher emotional engagement vs non-contextual advertising."},{name:"Liz AI Engine",description:"60M+ articles daily, 20,000+ publisher integrations, 40+ advertising-specific models. Decodes interest, emotion, and intent."}]},
+                {name:"Key Features",summary:"CTV, language scaling, Liz Agent.",color:"#0078f0",children:[{name:"CTV Integration",description:"Unified Neuro-Contextual understanding across open web and CTV. Proprietary services clean noisy bid request data."},{name:"Rapid Scaling",description:"New languages added in 1 day using embeddings, replacing months of manual training."},{name:"Liz Agent",description:"Conversational interface. Upload a brief → Liz automatically finds emotionally-matched audiences in seconds."}]},
+                {name:"Stand-Out Quotes",summary:"Selling the moment and the emotion.",type:"quote",color:"#0078f0",children:[{name:"Emotion",description:"\"We can sell the moment and the emotion. That's our value prop.\"",type:"quote"},{name:"350%",description:"\"Neuro-contextual advertising is 350% higher engagement than non-contextual.\"",type:"quote"}]}
+            ]},
+            { name:"Smartology", id:"smartology", color:"#0078f0", hasReport:true, reportContent:smartologyReport(), children:[
+                {name:"Core Technology",summary:"SmartMatch™: semantic vectors, fine-tuned LLM, 15 years of AI.",color:"#0078f0",children:[{name:"Semantic Matching",description:"Analyses the entire body of an article — not just headlines or keywords — to generate deep semantic vectors. Produces non-intuitive but high-performing placements that surface on closer inspection."},{name:"AI Brand Safety",description:"Dedicated deep-learning model trained on thousands of curated examples. Semantic category exclusions (e.g., 'natural disasters' automatically covers hurricanes, tsunamis, eruptions) — no keyword blocklists needed."},{name:"Multilingual LLM",description:"Fine-tuned pre-trained multilingual LLM with proprietary matching and brand safety data. 8 languages supported, 9th (Arabic) on roadmap. English accuracy in the high 90% range."}]},
+                {name:"Key Features",summary:"Cookie-free, proprietary DSP, 200+ publishers.",color:"#0078f0",children:[{name:"100% Cookie-Free",description:"Since inception in 2010. All targeting derived entirely from the semantic relationship between advertiser content and publisher content. Inherently compliant with all privacy regulations."},{name:"Proprietary DSP",description:"End-to-end control over bidding, optimisation, and delivery through RTB programmatic infrastructure. Algorithms adapt to varied client objectives — from high-volume B2C to tightly calibrated agency campaigns."},{name:"Self-Service Platform",description:"Set budget, select publishers, configure geo-targeting, choose dates, customise creatives, and go live within 24 hours — with no minimum spend and no subscription lock-in."}]},
+                {name:"Philosophy & Quotes",summary:"AI-native since 2010. Human-in-the-loop.",type:"quote",color:"#0078f0",children:[{name:"Human Element",description:"\"Even I'm amazed at how fast things have progressed, but everyone you speak to has got examples of where it doesn't do what you're expecting. For the time being, you still need that human element.\" — Marcus, Head of Technology",type:"quote"},{name:"AI-Native",description:"\"We don't really have to prove we've got AI.\" — Unlike companies retrofitting AI into existing products, Smartology's AI has been foundational since inception.",type:"quote"}]}
+            ]}
+        ]},
+        { name:"AI Optimisation", id:"optimisation", color:"#f2f0eb", isCategory:true, children:[
+            { name:"OneTag", id:"onetag", color:"#f2abff", hasReport:true, reportContent:onetagReport(), children:[
+                {name:"Smart Curation",summary:"30% higher CTR. Supply-side filtering.",color:"#f2abff",children:[{name:"Pre-Bid Optimisation",description:"Filters supply before it enters the bidstream. Drives ~30% higher CTR and viewability vs non-curated inventory."},{name:"Semantic Analysis",description:"'Related Topic Suggestions' via proprietary engine. Semantic data more than doubles CTR for many campaigns."},{name:"Attention Metrics",description:"Time-in-view, ads-to-content ratio, screen real estate, user interaction — all optimised in real-time."}]},
+                {name:"Infrastructure",summary:"170B+ daily auctions. MFA removal.",color:"#f2abff",children:[{name:"170B+ Auctions",description:"Proprietary cloud infrastructure processes 170 billion auctions daily. 9/10 EU brands now use curation platforms."},{name:"MFA Removal",description:"Filters 'Made For Advertising' sites using Sincera metadata: ads-to-content ratio, maximum ads in view."},{name:"Cookieless",description:"Supply metadata and semantics only. Immune to cookie deprecation. Higher match rates at source vs. DSP-side activation."}]},
+                {name:"Philosophy",summary:"The buyer's SSP.",type:"quote",color:"#f2abff",children:[{name:"Buyer's SSP",description:"\"The supply platform that thinks like a buyer. We filter wastage at source and curate high-quality impressions.\"",type:"quote"},{name:"Sustainability",description:"\"Smart Curation reduces carbon footprint by minimising the volume of information processed by DSPs.\"",type:"quote"}]}
+            ]},
+            { name:"PubMatic", id:"pubmatic", color:"#f2abff", hasReport:true, reportContent:pubmaticReport(), children:[
+                {name:"Core Technology",summary:"AgenticOS + NVIDIA: 5x faster, ~1ms latency.",color:"#f2abff",children:[{name:"AgenticOS",description:"CES 2026: first OS for agent-to-agent advertising. Open spec for agent communication reduces deal resolution by 70%."},{name:"NVIDIA Integration",description:"L40S GPUs, Triton Servers, RAPIDS for Spark. ~1ms latency (from 5-10ms). 85% fewer timeouts. 5x faster AI."},{name:"PubMatic Assistant",description:"Natural language deal creation (87% faster). Troubleshoots PMP deals, surfaces optimisation opportunities, detects yield anomalies."}]},
+                {name:"Key Features",summary:"Agent-to-agent, live sports, MFA reduction.",color:"#f2abff",children:[{name:"Agent-to-Agent",description:"First open spec for agent-to-agent programmatic communication. Agents collaborate on deals, cutting resolution time by 70%."},{name:"Live Sports",description:"GPU infrastructure handles surges from 10M to 200M viewers in minutes. One of the only independent SSPs at this scale."},{name:"MFA Reduction",description:"Automated MFA detection. Generative AI deal management for PMP and guaranteed deals."}]},
+                {name:"Stand-Out Quotes",summary:"Democratising AI for the open web.",type:"quote",color:"#f2abff",children:[{name:"5x Faster",description:"\"NVIDIA-powered AI delivers 5x faster decisioning, 85% fewer timeouts, unlocking millions in lost ad spend.\"",type:"quote"},{name:"Open Internet",description:"\"Publishers don't need to cede control. They can compete on technological capability, not just scale.\"",type:"quote"}]}
+            ]},
+            { name:"Quantcast", id:"quantcast", color:"#f2abff", hasReport:true, reportContent:quantcastReport(), children:[
+                {name:"Audience Graph",summary:"40PB/day, 10B predictions/sec, autonomous AI.",color:"#f2abff",children:[{name:"Predictive Engine",description:"Processes 40+ petabytes daily and makes 10B+ predictions per second. Unlike static audience segments, this is a live, predictive AI system that anticipates behaviour in real-time."},{name:"Three Components",description:"1) Open Internet Signals from 100M+ web destinations. 2) Content Intelligence mapping billions of pages. 3) Cross-Device + Household Graph connecting billions of devices."},{name:"Autonomous Agents",description:"Audience Agent (finds customers), Supply Agent (selects inventory, filters fraud), Optimisation Agent (orchestrates delivery and pricing). They operate as an ecosystem of autonomy."}]},
+                {name:"Q AI Suite",summary:"Agent Q, Analysis by Q, Audience by Q, Creative by Q.",color:"#f2abff",children:[{name:"Agent Q",description:"AI chatbot integrated into the platform — instant answers, pixel management, performance reports. The user-facing interface to the Audience Graph engine."},{name:"Analysis by Q",description:"Complete performance overview with industry benchmarks, persona insights, key metric trends, site performance, device breakdowns, and cookieless performance analysis."},{name:"Audience by Q",description:"Utilises Quantcast's best practices to determine optimal audiences for maximising conversions or revenue, based on your campaign's conversion data."}]},
+                {name:"Philosophy & Quotes",summary:"Built to understand consumers, not just buy media.",type:"quote",color:"#f2abff",children:[{name:"Consumer-First",description:"\"We are built to understand how consumers use devices and go about their journeys online. We're not built to buy media — that's secondary.\" — Alberto Ciot, Quantcast",type:"quote"},{name:"Unbiased AI",description:"\"The data is completely unbiased. We saw the Kim Kardashian + Lewis Hamilton trend days before the news broke — our AI spotted the audience overlap before any human could.\" — Alberto Ciot",type:"quote"}]}
+            ]},
+            { name:"Microsoft Ads", id:"microsoft", color:"#f2abff", hasReport:true, reportContent:microsoftReport(), children:[
+                {name:"Copilot Platform",summary:"Natural-language campaign management, 100M+ users.",color:"#f2abff",children:[{name:"Campaign Management",description:"Query in plain English — performance diagnostics, wastage identification, creative recommendations, 24/7 troubleshooting. Report generation reduced from 30 min to 1-2 min."},{name:"Ads Studio",description:"AI-powered creative suite: background generation, image-to-video animation, brand kit integration. Available via API for custom platform integration."},{name:"Performance Comparison",description:"Benchmark results across YoY, QoQ, MoM, WoW, DoD. Compare A/B groups, identify top/bottom performers, generate multi-month recaps — all via conversation."}]},
+                {name:"Agentic Commerce",summary:"Copilot Checkout, Brand Agents, in-conversation purchases.",color:"#f2abff",children:[{name:"Copilot Checkout",description:"Launched US Jan 2026. Consumers complete purchases within Copilot — no redirect. Partners: PayPal, Shopify, Stripe, Mastercard, Visa. Merchant remains merchant of record."},{name:"Brand Agents",description:"AI shopping assistants on merchant websites. Trained on product catalogs, speak in brand voice, guide discovery to purchase. Alexander Del Rossa: 3x higher conversion rates."},{name:"Consumer AI Ecosystem",description:"100M+ monthly active Copilot users. Copilot Discover (AI-curated feed), Copilot Edge (multi-tab AI), Copilot Voice/Mo (emotional intelligence). 91% mobile app download growth."}]},
+                {name:"Results & Quotes",summary:"33% shorter journeys, 194% purchase intent uplift.",type:"quote",color:"#f2abff",children:[{name:"Performance",description:"\"Copilot-engaged journeys are 33% shorter, deliver 16% higher conversion rates, 73% higher CTR, and 194% higher purchase intent when shopping intent is present.\"",type:"quote"},{name:"AI Equaliser",description:"\"A lot of the technology we're building is to enable you to create, to get things done quicker. Maybe you're a small business without a marketing person — AI is the equaliser.\" — Tracy, Microsoft Advertising",type:"quote"}]}
+            ]}
+        ]},
+        { name:"AI Infrastructure", id:"infrastructure", color:"#9499ff", isCategory:true, children:[
+            { name:"Azerion", id:"azerion", color:"#9499ff", hasReport:true, reportContent:azerionReport(), children:[
+                {name:"Core Technology",summary:"Multi-cloud AI, pay-per-use, 'AI for Everyone.'",color:"#9499ff",children:[{name:"Azerion Intelligence",description:"Open, independent multi-cloud AI platform. Pay-per-use pricing with auto-scaling. No infrastructure investment needed."},{name:"Multi-Cloud",description:"Negotiated rates with major cloud providers. Enterprise-grade AI accessible to businesses of all sizes."},{name:"Generative AI",description:"LLMs + transformer techniques for text, image, audio, video. Contextual URL classification for brand-safe targeting."}]},
+                {name:"Key Features",summary:"Marketplace, Smart Bidding, contextual AI.",color:"#9499ff",children:[{name:"AI Marketplace",description:"Hub of apps and agents. Third-party developers contribute. Serverless endpoints with auto-scaling."},{name:"Smart Bidding",description:"Predicts clearing prices and demand fluctuations. Improves yield in open market auctions in real-time."},{name:"Smart Content",description:"Combines video library with ad tech. Creates brand-safe video clips on the fly, matching context + creative."}]},
+                {name:"Stand-Out Quotes",summary:"AI democratisation.",type:"quote",color:"#9499ff",children:[{name:"Democratisation",description:"\"AI for Everyone — enterprise-grade compute accessible to agencies, publishers, and brands of all sizes.\"",type:"quote"},{name:"Platform",description:"\"Open, independent multi-cloud platform. Deploy and scale models without heavy capital investment.\"",type:"quote"}]}
+            ]},
+{ name:"Cape.io", id:"cape", color:"#9499ff", hasReport:true, reportContent:capeReport(), children:[
+    {name:"Core Technology",summary:"AI Compliance, Technical QA, Creative Analysis — expert-trained.",color:"#9499ff",children:[{name:"AI Compliance Check",description:"Reviews ads against 32+ rule types across 6 markets (UK, USA, France, Australia, Germany, Italy). Trained by specialists from Clearcast, Ofcom, ARPP, and Clear Ads. Checks market regulations AND platform-specific rules (Netflix, Disney+, etc.) simultaneously."},{name:"Technical QA",description:"5x faster creative QA via proprietary global spec database. Auto-detects asset type, brand, and destination. Checks file formats, bit rates, safe zones, VAST compliance across linear TV, CTV, DSPs, and ad servers."},{name:"Creative Analysis",description:"Analyses creative assets using synthetic audience data and actual performance data to provide pre-launch optimisation: CTA strength, logo placement, predicted attention, and brand recall benchmarks."}]},
+    {name:"Key Features",summary:"Modular, API-first, cross-channel, global specs.",color:"#9499ff",children:[{name:"Modular Platform",description:"Every service available individually or in combination. A media agency might use only QA and publishing. A brand with in-house teams might use end-to-end planning through creation, validation, and activation."},{name:"AI Studio + Sidekick",description:"AI Studio generates images, videos, product backgrounds, and multi-language voice-overs from text prompts. Sidekick AI Agent builds optimised media plans from campaign objectives, replacing manual spreadsheet planning."},{name:"Cross-Channel Coverage",description:"Linear TV, CTV, social (YouTube, Instagram, TikTok, Snapchat safe zones), display, video, DOOH, email, and print — unusually broad channel coverage for the creative automation space."}]},
+    {name:"Philosophy & Quotes",summary:"The creative execution gap. Expert AI, not generic LLMs.",type:"quote",color:"#9499ff",children:[{name:"Creative Gap",description:"\"There's been a lot of investment on the media side — measurement, data, optimising target audiences. But actually utilising the creative to optimise performance is underused, especially for TV.\" — Joe Hollywood, Head of Product",type:"quote"},{name:"Expert Moat",description:"\"Without that expert training, you're dependent on whatever you get out of a large language model, which isn't always particularly accurate. Our competitive advantage, our moat, is we're leveraging that expertise.\" — Joe Hollywood",type:"quote"}]}
+]}
+            
+        ]}
+        
+    ]
+};
+
+/* ===== PARTICLES ===== */
+const pc=document.getElementById('particle-canvas'),cx=pc.getContext('2d');let pts=[],mx=0,my=0;
+function initP(){pc.width=innerWidth;pc.height=innerHeight;pts=[];const n=Math.floor(innerWidth*innerHeight/18000);for(let i=0;i<n;i++){const colors=['0,120,240','0,255,227','148,153,255','242,171,255','71,240,26','255,217,0'];pts.push({x:Math.random()*pc.width,y:Math.random()*pc.height,vx:(Math.random()-0.5)*0.2,vy:(Math.random()-0.5)*0.2,r:Math.random()*1.2+0.4,a:Math.random()*0.2+0.05,c:colors[Math.floor(Math.random()*colors.length)]});}}
+function animP(){cx.clearRect(0,0,pc.width,pc.height);pts.forEach((p,i)=>{p.x+=p.vx;p.y+=p.vy;const dx=p.x-mx,dy=p.y-my,d=Math.sqrt(dx*dx+dy*dy);if(d<120){p.vx+=dx*0.00004;p.vy+=dy*0.00004;}p.vx*=0.999;p.vy*=0.999;if(p.x<0)p.x=pc.width;if(p.x>pc.width)p.x=0;if(p.y<0)p.y=pc.height;if(p.y>pc.height)p.y=0;cx.beginPath();cx.arc(p.x,p.y,p.r,0,Math.PI*2);cx.fillStyle=`rgba(${p.c},${p.a})`;cx.fill();for(let j=i+1;j<pts.length;j++){const q=pts[j],dd=Math.sqrt((p.x-q.x)**2+(p.y-q.y)**2);if(dd<90){cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(q.x,q.y);cx.strokeStyle=`rgba(148,153,255,${0.03*(1-dd/90)})`;cx.lineWidth=0.4;cx.stroke();}}});requestAnimationFrame(animP);}
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;});initP();animP();
+
+/* ===== INTRO ===== */
+const intro=document.getElementById('intro-overlay');
+function dismissIntro(){intro.classList.add('fade-out');setTimeout(()=>{document.getElementById('key-hint').classList.add('visible');},800);}
+intro.addEventListener('click',dismissIntro);
+setTimeout(()=>{if(!intro.classList.contains('fade-out'))dismissIntro();},5000);
+
+/* ===== D3 ===== */
+const zs=0.75;let cW=innerWidth,cH=innerHeight,vW=cW/zs,vH=cH/zs;
+const svg=d3.select("#canvas-container").append("svg").attr("width",cW).attr("height",cH).attr("viewBox",[-vW/2,-vH/2,vW,vH]);
+const defs=svg.append("defs");
+
+['contextual','optimisation','infrastructure'].forEach(cat=>{
+    const g=defs.append("linearGradient").attr("id","lg-"+cat);
+    const c=catColors[cat];
+    g.append("stop").attr("offset","0%").attr("stop-color",c).attr("stop-opacity","0.35");
+    g.append("stop").attr("offset","100%").attr("stop-color",c).attr("stop-opacity","0.05");
+});
+const lgDefault=defs.append("linearGradient").attr("id","lg");
+lgDefault.append("stop").attr("offset","0%").attr("stop-color","#0078f0").attr("stop-opacity","0.35");
+lgDefault.append("stop").attr("offset","100%").attr("stop-color","#0078f0").attr("stop-opacity","0.05");
+
+let focus=data, tSpeed=650;
+
+function calcR(d,f){const m=Math.min(innerWidth,innerHeight);return f?m*0.22:m*0.11;}
+
+function updateBC(n){
+    const c=[];let cur=n;while(cur){c.unshift(cur);cur=cur.parent;}
+    const el=document.getElementById("breadcrumbs");el.innerHTML="";
+    c.forEach((cr,i)=>{const s=document.createElement("span");s.innerText=cr.data.name;s.className=i===c.length-1?"breadcrumb-item breadcrumb-current":"breadcrumb-item";if(i!==c.length-1)s.onclick=()=>zoomTo(cr);el.appendChild(s);if(i<c.length-1){const sp=document.createElement("span");sp.innerText="›";sp.className="breadcrumb-separator";el.appendChild(sp);}});
+    const bb=document.getElementById("back-btn"),hb=document.getElementById("home-btn");
+    if(n.parent){bb.classList.add("visible");hb.classList.add("visible");}else{bb.classList.remove("visible");hb.classList.remove("visible");}
+    const fs=document.getElementById("node-filter");if(n.data.id)fs.value=n.data.id;else{let p=n.parent;while(p){if(p.data.id){fs.value=p.data.id;break;}p=p.parent;}}
+}
+
+function toggleDocumentView(){
+    const cv=document.getElementById("canvas-container"),ov=document.getElementById("doc-overlay"),ca=document.getElementById("doc-content-area"),btn=document.getElementById("report-btn");
+    if(ov.style.display==="block"){
+        ov.classList.remove("active");
+        setTimeout(()=>{ov.style.display="none";},450);
+        cv.style.opacity="1";
+        btn.innerHTML=`View ${focus.data.name} Report`;
+        btn.style.background="var(--bright-blue)";btn.style.color="white";
+    } else {
+        const cat = getCatForNode(focus);
+        ca.setAttribute('data-category', cat);
+        if(focus.data.reportContent) ca.innerHTML='<button class="doc-close" onclick="toggleDocumentView()">&#10005;</button>'+(typeof focus.data.reportContent==='function'?focus.data.reportContent():focus.data.reportContent);
+        ov.style.display="block";
+        ov.scrollTop=0;
+        setTimeout(()=>{ov.classList.add("active");},10);
+        cv.style.opacity="0";
+        btn.innerHTML="&#8592; Back to Visual";
+        btn.style.background="rgba(255,255,255,0.08)";btn.style.color="white";
+    }
+}
+
+document.addEventListener('keydown',e=>{if(e.key==="Escape"){const o=document.getElementById("doc-overlay");if(o.style.display==="block")toggleDocumentView();else goUp();}});
+
+const tooltip=document.getElementById('node-tooltip');
+function showTip(ev,d){tooltip.innerHTML=`${d.data.name}<div class="tt-hint">Click to explore</div>`;tooltip.style.left=(ev.clientX+16)+'px';tooltip.style.top=(ev.clientY-10)+'px';tooltip.classList.add('visible');}
+function hideTip(){tooltip.classList.remove('visible');}
+
+function populateFilter(){const sel=document.getElementById("node-filter"),root=d3.hierarchy(data);if(root.children){root.children.forEach(cat=>{const g=document.createElement("optgroup");g.label=cat.data.name;const co=document.createElement("option");co.value=cat.data.id;co.innerText="All "+cat.data.name;g.appendChild(co);if(cat.children)cat.children.forEach(comp=>{const o=document.createElement("option");o.value=comp.data.id;o.innerText=comp.data.name;g.appendChild(o);});sel.appendChild(g);});}}
+
+function filterNavigate(id){const root=d3.hierarchy(data);let t=null;if(id==="root")t=root;else root.descendants().forEach(d=>{if(d.data.id===id)t=d;});if(t)zoomTo(t);}
+
+/* ===== RENDER ===== */
+function updateVisuals(src){
+    const rb=document.getElementById("report-btn");
+    if(src.data.hasReport){rb.innerHTML=`View ${src.data.name} Report`;rb.classList.add("visible");}
+    else{rb.classList.remove("visible");const o=document.getElementById("doc-overlay");if(o.style.display==="block")toggleDocumentView();}
+    svg.selectAll("*:not(defs):not(defs *)").remove();updateBC(src);
+
+    let nodes=[];
+    if(src.data.id==='root'){
+        const cats=src.children,cw=vW/3;
+        cats.forEach((cat,ci)=>{const xO=ci===0?-cw:ci===1?0:cw;cat.x=xO;cat.y=-200;cat.r=0;nodes.push(cat);if(cat.children)cat.children.forEach((ch,i)=>{ch.x=xO+(ci===0?((i%2===0)?-70:70):0);ch.y=-50+(ci===0?Math.floor(i/2)*190:i*190);ch.r=80;nodes.push(ch);});});
+    } else {
+        nodes=[src];src.r=calcR(src,true);let maxCR=0;
+        if(src.children){nodes=nodes.concat(src.children);src.children.forEach(c=>{c.r=calcR(c,false);if(c.r>maxCR)maxCR=c.r;});}
+        src.x=0;src.y=0;
+        if(src.children){const orb=src.r+maxCR+50,step=(2*Math.PI)/src.children.length;src.children.forEach((c,i)=>{c.x=orb*Math.cos(i*step-Math.PI/2);c.y=orb*Math.sin(i*step-Math.PI/2);});}
+
+        const catId = getCatForNode(src);
+        const gradId = catColors[catId] ? "lg-"+catId : "lg";
+
+        if(src.children){svg.selectAll("line.conn").data(src.children).enter().append("line").attr("class","conn").attr("x1",0).attr("y1",0).attr("x2",0).attr("y2",0).attr("stroke",`url(#${gradId})`).attr("stroke-width",1.5).attr("opacity",0).transition().duration(tSpeed).delay(150).attr("x2",d=>d.x).attr("y2",d=>d.y).attr("opacity",0.5);}
+
+        const cc = getCatColor(src);
+        [1.15,1.3].forEach((s,i)=>{svg.append("circle").attr("cx",0).attr("cy",0).attr("r",src.r*s).attr("fill","none").attr("stroke",i===0?cc:"rgba(242,240,235,0.5)").attr("stroke-width",1).attr("opacity",0.06);});
+    }
+
+    const node=svg.selectAll("g.node").data(nodes).enter().append("g")
+        .attr("class",d=>d===src?"node focused":"node peripheral")
+        .attr("transform",d=>src.data.id==='root'?`translate(${d.x},${d.y})`:"translate(0,0)")
+        .style("opacity",0)
+        .on("click",function(ev,d){
+            hideTip();
+            if(d===src && d.children && d.children.length>0) return;
+            if(d===src && !d.children) return;
+            zoomTo(d);
+        })
+        .on("mouseover",function(ev,d){if(d!==src||(src.data.id==='root')){d3.select(document.body).style("cursor","pointer");showTip(ev,d);}})
+        .on("mousemove",function(ev){if(tooltip.classList.contains('visible')){tooltip.style.left=(ev.clientX+16)+'px';tooltip.style.top=(ev.clientY-10)+'px';}})
+        .on("mouseout",function(){d3.select(document.body).style("cursor","default");hideTip();});
+
+    node.transition().duration(tSpeed).delay((d,i)=>i*50).attr("transform",d=>`translate(${d.x},${d.y})`).style("opacity",1);
+
+    node.append("circle").attr("r",0)
+        .attr("fill",d=>{
+            if(d===src&&src.data.id!=='root') return "rgba(5,20,97,0.8)";
+            if(src.data.id==='root'&&d.data.isCategory) return "transparent";
+            return d.data.color||"#0078f0";
+        })
+        .attr("stroke",d=>{
+            if(d===src&&src.data.id!=='root') return getCatColor(d);
+            if(src.data.id==='root'&&d.data.isCategory) return "transparent";
+            return "rgba(242,240,235,0.2)";
+        })
+        .attr("stroke-width",d=>d===src?2:1.5)
+        .attr("opacity",d=>(src.data.id==='root'&&d.data.isCategory)?0:1)
+        .transition().duration(tSpeed).delay((d,i)=>i*50).attr("r",d=>d.r).ease(d3.easeCubicOut);
+
+    node.append("foreignObject")
+        .attr("x",d=>(src.data.id==='root'&&d.data.isCategory)?-150:-d.r+20)
+        .attr("y",d=>(src.data.id==='root'&&d.data.isCategory)?-30:-d.r+20)
+        .attr("width",d=>(src.data.id==='root'&&d.data.isCategory)?300:(d.r*2)-40)
+        .attr("height",d=>(src.data.id==='root'&&d.data.isCategory)?60:(d.r*2)-40)
+        .style("opacity",0)
+        .append("xhtml:div")
+        .attr("class",d=>d===src?"node-content focused":"node-content peripheral")
+        .html(d=>{
+            if(src.data.id==='root'){
+                if(d.data.isCategory) return`<div class="category-header"><h3>${d.data.name}</h3></div>`;
+                return`<div style="width:100%;height:100%;display:flex;justify-content:center;align-items:center;"><div class="fallback-logo" style="background:${d.data.color||'#0078f0'}"><span>${d.data.name}</span></div></div>`;
+            }
+            if(d===src){
+                if(!d.parent)return`<h1>${d.data.name}</h1>`;
+                if(!d.data.summary&&!d.data.description)return`<h2>${d.data.name}</h2>`;
+                if(d.data.description){
+                    if(d.data.type==='quote')return`<div class="detail-container"><span class="quote-style">${d.data.description}</span></div>`;
+                    return`<div class="detail-container">${d.data.description}</div>`;
+                }
+                if(d.data.summary)return`<h3>${d.data.name}</h3><div class="summary-text">${d.data.summary}</div>`;
+            }
+            return`<h3>${d.data.name}</h3>`;
+        });
+
+    node.selectAll("foreignObject").transition().delay((d,i)=>tSpeed/2+i*50).duration(tSpeed/2).style("opacity",1);
+}
+
+function zoomTo(d){focus=d;animT();}
+function goUp(){if(focus.parent){focus=focus.parent;animT();}}
+function goHome(){while(focus.parent)focus=focus.parent;animT();}
+function animT(){
+    hideTip();
+    const o=document.getElementById("doc-overlay");
+    if(o.style.display==="block"){o.classList.remove("active");document.getElementById("canvas-container").style.opacity="1";setTimeout(()=>{o.style.display="none";},300);}
+    svg.selectAll("g.node").transition().duration(200).style("opacity",0);
+    svg.selectAll("line.conn").transition().duration(200).style("opacity",0);
+    setTimeout(()=>{svg.selectAll("*:not(defs):not(defs *)").remove();updateVisuals(focus);},230);
+}
+
+populateFilter();updateVisuals(d3.hierarchy(data));
+
+window.addEventListener("resize",()=>{cW=innerWidth;cH=innerHeight;vW=cW/zs;vH=cH/zs;d3.select("svg").attr("width",cW).attr("height",cH).attr("viewBox",[-vW/2,-vH/2,vW,vH]);pc.width=cW;pc.height=cH;updateVisuals(focus);});
+</script>
+</body>
+</html>
